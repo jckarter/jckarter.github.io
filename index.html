@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Durian Software</title>
+<link rel="stylesheet" href="durians.css">
+<script src="durians.js"></script>
+</head>
+<body class="index">
+<img class="marquee" src="durians.png">
+<div class="content">
+
+<div class="sidebar index-nav">
+<p><a href="joe/index.html">Joe's blog</a></p>
+<p><a href="toys/index.html">Toys</a></p>
+</div>
+
+<div id="tag1" class="tagline tag1">robust odor</div>
+<div id="tag2" class="tagline tag2">distinct flavor</div>
+<div id="tag3" class="tagline tag3">sublime texture</div>
+<script>
+var tags = random_taglines();
+document.getElementById('tag1').innerHTML = tags[0];
+document.getElementById('tag2').innerHTML = tags[1];
+document.getElementById('tag3').innerHTML = tags[2];
+</script>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="contact.html">Contact Us</a>
+</div>
+</body>
+</html>

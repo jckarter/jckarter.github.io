@@ -1,0 +1,36 @@
+body {
+    background-color: gray;
+}
+
+#frame {
+    position: relative;
+    background-color: #ddd;
+    border: 1px solid black;
+    margin: auto;
+    margin-top: 10px;
+    width: 640px;
+    height: 480px;
+    overflow: hidden;
+}
+
+#instructions {
+    margin: auto;
+    text-align: center;
+    padding: 2em;
+}
+
+.layer {
+    position: absolute;
+    margin: 0;
+    padding: 0;
+    width: 640px;
+    height: 480px;
+    overflow: hidden;
+}
+
+.tile {
+    display: block;
+    position: absolute;
+    width: 256px;
+    height: 256px;
+}

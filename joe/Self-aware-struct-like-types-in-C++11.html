@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Self-aware struct-like types in C++11</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Self-aware-struct-like-types-in-C++11.html">Self-aware struct-like types in C++11</a></h3>
+<h4>updated July 5, 2012 11:49:30 PDT</h4>
+<p>
+Even with C++11, C++ offers inadequate metaprogramming facilities for user-defined types compared
+to other programming languages.  Given an arbitrary struct type, you can't iterate its fields and
+get useful information like name, offset, and size, without implementing those facilities by hand.
+(Nearly every would-be C++ replacement language fixes this, but they
+unfortunately aren't always viable options.)
+The C++11 standard library introduced the <tt>tuple</tt> template as a general-purpose
+metaprogrammable composite type, but it sucks in a number of ways:
+<ul>
+<li>The user interface is awkward. Fields are unnamed and require integer indexing using a top-level template function, <tt>get&lt;N&gt;(tuple)</tt> instead of <tt>struct.fieldname</tt>.
+<li>The implementation is not straightforward: <a href="https://github.com/llvm-mirror/libcxx/blob/master/include/tuple">libc++'s <tt>tuple</tt> header</a> is 1054 lines, and <a href="http://gcc.gnu.org/viewcvs/trunk/libstdc%2B%2B-v3/include/std/tuple?revision=188636&view=markup">libstdc++'s</a> is 1100, and both implementations rely on several layers of internal base classes to form the user-facing <tt>tuple</tt> type.
+<li>Useful techniques like <a href="http://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer">passing unpacked tuple elements to a function</a> are awkward to implement.
+<li><tt>tuple</tt> as specified by the standard doesn't provide <tt>constexpr</tt> elementwise construction or field access and can't be used in compile-time calculations.
+</ul>
+<p>Here's an alternative approach I came up with that provides a user interface nearly equivalent to primitive structs, is much easier to metaprogram with than <tt>tuple</tt>, and is easier to implement as well, requiring about 150 lines of header-only code.
+I've put a sample implementation up on Github at <a href="https://github.com/jckarter/selfaware">https://<wbr>github.com/<wbr>jckarter/<wbr>selfaware</a>. Here's a rundown of how it works.
+<h3>Self-aware field templates</h3>
+<p>The main idea is to inherit the "struct" type from a set of field class templates, each of which defines a single field along with methods to generically access its name string, value, and type. For example, a field template named <tt>foo</tt> looks like this:
+<pre>template&lt;typename T>
+struct foo {
+    T foo;
+
+    // field name
+    constexpr static char const *name() { return "foo"; }
+
+    // field type
+    using type = T;
+
+    // field value generic accessor
+    T &amp;value() &amp; { return this->foo; }
+    T const &amp;value() const &amp; { return this->foo; }
+    T &amp;&amp;value() &amp;&amp; { return this->foo; }
+};</pre>
+<p>A preprocessor macro can generate these for us:
+<pre>#define SELFAWARE_IDENTIFIER(NAME) \
+    template&lt;typename T> \
+    struct NAME { \
+        T NAME; \
+        // field name \
+        constexpr static char const *name() { return #NAME; } \
+        // field type \
+        using type = T; \
+        // field value generic accessor \
+        T &amp;value() &amp; { return this->NAME; } \
+        T const &amp;value() const &amp; { return this->NAME; } \
+        T &amp;&amp;value() &amp;&amp; { return this->NAME; } \
+    };</pre>
+<h3>The self-aware struct template</h3>
+<p>The "struct" template now needs only to inherit a set of field template instances and provide some
+constructors:
+<pre>template&lt;typename...Fields>
+struct Struct : Fields... {
+    // A convenience alias for subclasses
+    using struct_type = Struct;
+
+    // Preserve default constructors
+    Struct() = default;
+    Struct(Struct const &amp;) = default;
+
+    // Forwarding elementwise constructor
+    template&lt;typename...T>
+    constexpr Struct(T &amp;&amp;...x) : Fields{static_cast&lt;T&amp;&amp;>(x)}... {}
+};</pre>
+<p>A <tt>Struct</tt> type can then be used either by aliasing a <tt>Struct</tt> instance or by
+inheriting an instance and its constructors.
+(As of Clang 3.1 and GCC 4.7, neither compiler yet supports inheriting constructors, so
+aliasing is currently more practical.)
+<pre>SELFAWARE_IDENTIFIER(foo)
+SELFAWARE_IDENTIFIER(bar)
+// Aliasing a Struct instance
+using FooBar = Struct&lt;foo&lt;int>, bar&lt;double>>;
+// Inheriting a Struct instance (requires inheriting constructors)
+struct FooBar2 : Struct&lt;foo&lt;int>, bar&lt;double>> { using struct_type::struct_type; };</pre>
+<p>Values of the type look like normal structs to user code:
+<pre>FooBar frob(int x) {
+    FooBar f = {x, 0.0};
+    f.foo += 1;
+    f.bar += 1.0;
+    return f;
+}</pre>
+<p>The type is <a href="http://en.cppreference.com/w/cpp/types/is_trivial">trivial</a> if its component types are trivial, and its instances can be used in compile-time calculations if its component types can, like primitive structs. (However, because it inherits
+multiple nonempty types, it's not <a href="http://en.cppreference.com/w/cpp/types/is_standard_layout">standard-layout</a>, and thus not quite POD.)
+<pre>static_assert(std::is_trivial&lt;FooBar>::value, "should be trivial");
+static_assert(FooBar{2, 3.0}.foo + FooBar{2, 4.0}.foo == 4, "2 + 2 == 4");</pre>
+<h3>Metaprogramming with self-aware structs</h3>
+<p>Since the fields of the <tt>Struct</tt> template are encoded in a template parameter pack,
+there's a lot you can do to it with unpack expressions and recursive templates. Here are a few
+examples:
+
+<h3>Function application</h3>
+<p>Applying a function object
+to a <tt>Struct</tt>'s unpacked fields is easy&mdash;just unpack the <tt>value()</tt> method
+of each field superclass into a function call expression:
+<pre>template&lt;typename Function, typename...Fields>
+auto apply(Function &amp;&amp;f, Struct&lt;Fields...> const &amp;a_struct)
+    -> decltype(f(a_struct.Fields::value()...))
+{
+    return f(a_struct.Fields::value()...);
+}
+
+double hypotenuse(double x, double y) { return sqrt(x*x, y*y); }
+
+double fooBarHypotenuse(FooBar const &amp;x) { return apply(hypotenuse, x); }</pre>
+
+<h3>Interop with <tt>tuple</tt></h3>
+
+<p>A <tt>Struct</tt> can be converted into a <tt>tuple</tt> or <tt>tie</tt> similarly:
+<pre>template&lt;typename...Fields>
+auto structToTuple(Struct&lt;Fields...> const &amp;s)
+    -> std::tuple&lt;typename Fields::type...>
+{
+    return std::make_tuple(s.Fields::value()...);
+}
+template&lt;typename...Fields>
+void assignStructFromTuple(Struct&lt;Fields...> &amp;s,
+                           std::tuple&lt;typename Fields::type...> const &amp;t)
+{
+    std::tie(s.Fields::value()...) = t;
+}</pre>
+
+<h3>Generating code from field metadata</h3>
+<p>The <tt>Struct</tt> template can implement a static method to iterate through its fields,
+passing the name string, offset, size, and type of each field to a function object in turn.
+(Getting the offset unfortunately relies on undefined behavior, because C++11 restricts
+<tt>offsetof</tt> to standard-layout types and provides no other well-defined means that
+I know of for determining offsets independent of an instance.)
+
+<pre>template&lt;typename...Fields>
+struct Struct : Fields... {
+    // ... see above ...
+
+    // NB: relies on undefined behavior
+    template&lt;typename Field>
+    static std::uintptr_t offset_of() {
+        return reinterpret_cast&lt;std::uintptr_t>(&amp;static_cast&lt;Struct*>(nullptr)->Field::value());
+    }
+
+    template&lt;template&lt;typename T> class Trait, typename Function>
+    static void each_field(Function &amp;&amp;f)
+    {
+        // Unpack expressions are only allowed in argument lists and initialization lists,
+        // so this expression unpacks the function call expression into the initializer list
+        // for an unused array (which the optimizer is nice enough to discard)
+        char pass[] = {
+            (f(Fields::name(), offset_of&lt;Fields>(), sizeof(typename Fields::type),
+              Trait&lt;typename Fields::type>::value()), '\0')...};
+        (void)pass; // suppress unused variable warnings
+    }
+};</pre>
+
+<p>Many libraries that deal with binary data have finicky APIs for describing struct layouts.
+A good example is OpenGL's <a href="http://www.opengl.org/sdk/docs/man4/"><tt>gl<wbr>Vertex<wbr>Attrib<wbr>Pointer</tt></a> interface, which is used to describe
+the format of vertex information in memory. The <tt>each_field</tt>
+function template, paired with a traits class, can generate the correct sequence of
+<tt>gl<wbr>Vertex<wbr>Attrib<wbr>Pointer</tt> automatically from a <tt>Struct</tt> instance's metadata:
+
+<pre>struct GLVertexType { GLuint size; GLenum type; GLboolean normalized; };
+
+// A trait class to provide glVertexAttribPointer arguments appropriate for a type
+template&lt;typename> struct GLVertexTraits;
+template&lt;GLuint N>
+struct GLVertexTraits&lt;float[N]> {
+    static GLVertexType value() { return {N, GL_FLOAT, GL_FALSE}; }
+};
+template&lt;GLuint N>
+struct GLVertexTraits&lt;std::uint8_t[N]> {
+    static GLVertexType value() { return {N, GL_UNSIGNED_BYTE, GL_TRUE}; }
+};
+
+template&lt;typename Struct>
+bool bindVertexAttributes(GLuint program)
+{
+    _VertexAttributeBinder iter(program, sizeof(T));
+    Struct::template each_field&lt;GLVertexTraits>(
+        [=program](char const *name, size_t offset, size_t size, GLVertexType info) {
+            GLint location = glGetAttribLocation(program, name);
+            glVertexAttribPointer(location, info.size, info.type, info.normalized,
+                                  sizeof(Struct), reinterpret_cast&lt;const GLvoid*>(offset));
+            glEnableVertexAttribArray(location);
+        });
+    return iter.ok;
+}</pre>
+
+<h3>Selecting a field at runtime by string name</h3>
+<p>A recursive template can generate code to pick a field at runtime from a string argument, passing the value through a function object to narrow the return type:</p>
+<pre>template&lt;typename R, typename Field, typename...Fields, typename Visitor, typename...AllFields>
+R _select_field(Visitor &amp;&amp;v, char const *name, Struct&lt;AllFields...> const &amp;a_struct)
+{
+    if (strcmp(name, Field::name()) == 0)
+        return v(a_struct.Field::value());
+    else
+        return _select_field&lt;R, Fields...>(static_cast&lt;Visitor&amp;&amp;>(v), name, a_struct);
+}
+
+template&lt;typename R, typename Visitor, typename...AllFields>
+R _select_field(Visitor &amp;&amp;v, char const *name, Struct&lt;AllFields...> const &amp;a_struct)
+{
+    throw std::runtime_error("bad field name");
+}
+
+template&lt;typename Visitor, typename Field, typename...AllFields>
+auto select_field(Visitor &amp;&amp;v, char const *name, Struct&lt;Field, AllFields...> const &amp;a_struct)
+    -> decltype(v(a_struct.Field::value()))
+{
+    return _select_field&lt;decltype(v(a_struct.Field::value())), Field, AllFields...>
+        (static_cast&lt;Visitor&amp;&amp;>(v), name, a_struct);
+}</pre>
+
+<tt>select_field</tt> can then be used like this:
+
+<pre>template&lt;typename T>
+struct converter {
+    template&lt;typename U> T operator()(U &amp;&amp;x) { return T(x); }
+};
+
+void testStructSelectField()
+{
+    FooBar x{11, 22.0};
+
+    double foo = select_field(converter&lt;double>(), "foo", x);
+    double bar = select_field(converter&lt;double>(), "bar", x);
+    assert(foo == 11.0);
+    assert(bar == 22.0);
+}</pre>
+
+<h3>Problems</h3>
+<p>This technique still isn't ideal. Most obviously, field templates all need to be
+defined somewhere, which adds maintenance friction, and they rely on unseemly preprocessor magic
+to create. Fields and <tt>Struct</tt> instances could
+perhaps be instantiated together in one macro, perhaps by pulling in <tt>boost::preprocessor</tt>.
+Compile time, always an issue with C++, also suffers from use of the <tt>Struct</tt> template. Clang 3.1 takes almost a second on this 2.4 GHz Core 2 Duo just to compile the 199-line <a href="https://github.com/jckarter/selfaware/blob/master/selfaware-test.cpp"><tt>selfaware-test.cpp</tt></a> test suite. And <tt>tuple</tt>, for all its faults, is standard, and will be available on any platform
+that purports to support C++11. Neither <tt>Struct</tt> nor <tt>tuple</tt> is standard-layout and
+thus can't interoperate with C in a standard-guaranteed, portable way. I'd love to hear about other
+approaches to enabling composite type metaprogramming in C++.
+
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

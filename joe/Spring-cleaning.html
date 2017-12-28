@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Spring cleaning</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Spring-cleaning.html">Spring cleaning</a></h3>
+<h4>updated August 19, 2009 10:28:57 PDT</h4>
+<p>
+I'm a weak-willed person, and I've strayed far from my goal of writing the great American video game. Here are a couple things I've been working on instead.
+</p>
+<h3>GPU-based voxel rendering</h3>
+<p>
+I'm a big fan of the pixel art of the 16-bit era, and I thought it'd be a fun experiment popping that style into the third dimension. To that end, I've written a simple low-resolution voxel renderer and modeler.
+</p>
+<img src="http://duriansoftware.com/joe/media/trixel.png">
+<p>
+The renderer draws a cube-shaped shell geometry around the voxmap's bounding cube, drawing the surface with a fragment shader that casts a ray through the body of the cube looking for an opaque voxel. A traditional voxel raycaster would sample the voxmap at a constant interval along the ray, perhaps doing trilinear filtering around each sample point to eliminate aliasing. Since I was intentionally going for a blocky look, I instead just sample the rays at every voxel boundary. Once the shader code was done, wrapping it in a nice, Mac-friendly editor program with Cocoa and Objective-C was easy. You can pull the code with:<br><tt>git clone http://duriansoftware.com/code/Trixel.git</tt>. 
+</p>
+<h3>High-level OpenGL API wrapper for Factor</h3>
+<p>
+OpenGL was a great API when graphics accelerators were expensive novelties with a few fixed features, but as GPUs have become more common and more capable, its years of drinking and flirting with different extensions and steering committees haven't been kind to it. Even with the tummy tucks and chest lifts of OpenGL 3, its warts and wrinkles still seep through.
+But despite its age, OpenGL still does its job, and it's the only graphics API choice for anything that might run on anything other than a PC or XBox. It should be possible to give OpenGL an object-oriented veneer to hide the state-machine monster underneath. And in a high-level language implementation like SBCL or Factor with expressive metaprogramming and compiler optimizations, we should even be able to minimize the run-time cost of using that veneer. I've written such a library for Factor, which is available in the <a href="http://factorcode.org/">Factor distribution</a> as the <a href="http://docs.factorcode.org/content/article-gpu-summary.html"><tt>gpu</tt> set of libraries</a>, complete with docs and demos.
+</p>
+<p>
+To put my library through its paces, I knocked out a couple demos. First, a port of the Stanford Bunny demo:
+</p>
+<img src="http://duriansoftware.com/joe/media/bunny.png">
+<p>
+Second, a take on the classic Amiga raytracer demo, but in real time using GPU acceleration:
+</p>
+<img src="http://duriansoftware.com/joe/media/raytrace.png">
+<p>
+Check out the code for <a href="http://gitweb.factorcode.org/gitweb.cgi?p=factor/.git;a=blob;f=extra/gpu/demos/bunny/bunny.factor;h=48f74df6cec0b401d28ea786189ebd8519301ad4;hb=HEAD">gpu.demos.bunny</a> and <a href="http://gitweb.factorcode.org/gitweb.cgi?p=factor/.git;a=blob;f=extra/gpu/demos/raytrace/raytrace.factor;h=339f192416663be3877bf7215a10703163c965e5;hb=HEAD">gpu.demos.raytrace</a> from the Factor git repo. The library makes it easy to load and interactively update shaders, define binary formats for GPU vertex buffers, and feed parameters to shader code using Factor objects. Along with Factor's <a href="http://duriansoftware.com/joe/The-Factor-game-framework.html">game framework</a> libraries, you can knock out non-trivial graphics demos with only a few hundred lines of new Factor code.
+</p>
+<h3>Real work</h3>
+<p>
+I've been lackadaisically working on BattleMints too. Here's how it looks these days:
+</p>
+<table><tr>
+<td><img src="http://duriansoftware.com/joe/media/battlemints-aug-1.png"></td>
+<td><img src="http://duriansoftware.com/joe/media/battlemints-aug-2.png"></td>
+</tr><tr>
+<td><img src="http://duriansoftware.com/joe/media/battlemints-aug-3.png"></td>
+<td><img src="http://duriansoftware.com/joe/media/battlemints-aug-4.png"></td>
+</tr></table>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

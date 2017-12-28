@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 2.3: Rendering</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">An intro to modern OpenGL. Chapter 2.3: Rendering</a></h3>
+<h4>updated April 25, 2010 13:13:38 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">&laquo; Chapter 2.2</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html">Chapter 3 &raquo;</a></h4>
+<p>
+At this point in our <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">"hello world" program</a>, we've <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">loaded our buffers and textures</a> and <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">compiled and linked our shader program</a>. The pieces are all finally in place&mdash;let's render our image.
+</p>
+<h3>Overview of a rendering job</h3>
+<p>
+Rendering potentially takes a lot of parameters. In addition to all of the buffers, textures, shaders, and uniform parameters it may involve, there are dozens of miscellaneous settings I haven't touched on that control how a rendering job behaves. Rather than offer a monolithic "draw" function with all of these flags as arguments, or require you to fill out a struct with dozens of fields, OpenGL's approach is to lay all of these settings out as a state machine. When you bind objects to targets using <tt>glBindTexture</tt>, <tt>glBindBuffer</tt>, and their kin, you are not only making the objects available for modification, you are also binding them to the current rendering job's state. There are also state manipulation functions that set the current shader program, assign values to uniform parameters, and describe the structure of the vertex array. When you finally submit a job with <tt>glDrawElements</tt>, OpenGL takes a snapshot of the current state and adds it to the GPU's command queue, where it will be executed as soon as the GPU is available. Meanwhile, you can change the OpenGL state around and queue up additional jobs without waiting for your previous jobs to finish. Once you're done queueing up jobs, you tell the window system to "swap buffers", which will wait for all of the queued jobs to finish and then commit the result to the screen.
+</p>
+<p>Let's start writing the code to set up our rendering job state:</p>
+<h3>Activating the shader program and assigning uniforms</h3>
+<pre>
+static void render(void)
+{
+    glUseProgram(g_resources.program);
+</pre>
+<p>We begin by activating our shader program by passing the name of the linked program object to <tt>glUseProgram</tt>. Once the program is active, we can start assigning values to our uniform variables. If you recall from looking at <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html#gl2-fragment-shader">our fragment shader source</a>, we have the <tt>float fade_factor</tt> and an array of two <tt>sampler2D</tt>s named <tt>textures</tt> to assign.</p>
+<pre>
+    glUniform1f(g_resources.uniforms.fade_factor, g_resources.fade_factor);
+</pre>
+<p>
+OpenGL provides a family of <tt>glUniform*</tt> functions for assigning to uniform variables, with each member corresponding to a possible type for a uniform variable in a GLSL program. These functions all have names of the form <tt>glUniform{dim}{type}</tt>, where the <tt>dim</tt> indicates the size of a vector type (<tt>1</tt> for an <tt>int</tt> or <tt>float</tt> uniform, <tt>2</tt> for a <tt>vec2</tt>, etc.), and the <tt>type</tt> indicates the component type: either <tt>i</tt> for integer, or <tt>f</tt> for floating-point. Our <tt>fade_factor</tt> uniform is a simple <tt>float</tt>, so we assign it by calling <tt>glUniform1f</tt>, passing in the uniform's location and new value as arguments.</p>
+<pre>
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_resources.textures[0]);
+    glUniform1i(g_resources.uniforms.textures[0], 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, g_resources.textures[1]);
+    glUniform1i(g_resources.uniforms.textures[1], 1);
+</pre>
+<p>
+Assigning textures to <tt>sampler</tt>s is a bit more complicated. The GPU has a limited number of <b>texture units</b> that can supply texture data to any one rendering job. We have to bind our texture objects to these texture units, then assign the indexes of the texture units to our <tt>sampler</tt> uniform variables as if they were <tt>int</tt> variables. The <tt>GL_TEXTURE_*</tt> target name we bind to must also correspond to the type of the <tt>sampler</tt> uniform. In our case, <tt>GL_TEXTURE_2D</tt> corresponds to the <tt>sampler2D</tt> type of our <tt>textures</tt> variable. <tt>glActiveTexture</tt> sets the active texture unit. <tt>glBindTexture</tt> takes the active texture unit as an implicit parameter, binding the given texture object to the target on that unit. (Other texture object manipulation functions like <tt>glTexParameteri</tt> and <tt>glTexImage2D</tt> also operate on the texture bound to the active texture unit.) Once we've bound the texture unit, we can assign its index to the uniform using <tt>glUniform1i</tt>.
+</p>
+<h3>Setting up the vertex array</h3>
+<pre>
+    glBindBuffer(GL_ARRAY_BUFFER, g_resources.vertex_buffer);
+    glVertexAttribPointer(
+        g_resources.attributes.position,  /* attribute */
+        2,                                /* size */
+        GL_FLOAT,                         /* type */
+        GL_FALSE,                         /* normalized? */
+        sizeof(GLfloat)*2,                /* stride */
+        (void*)0                          /* array buffer offset */
+    );
+    glEnableVertexAttribArray(g_resources.attributes.position);
+</pre>
+<p>
+Next, we tell OpenGL the format of our vertex array. We do this by going through each vertex attribute and calling <tt>glVertexAttribPointer</tt>, which associates a part of a vertex buffer with the attribute, and <tt>glEnableVertexAttribArray</tt>, which tells OpenGL to read values for that attribute from the vertex array while rendering. <tt>glVertexAttribPointer</tt> takes as arguments the attribute location, the size and component type of the associated attribute variable (for our <tt>position</tt> attribute, size <tt>2</tt> and type <tt>GL_FLOAT</tt>), the number of bytes between attribute values (called the <b>stride</b>), and the offset of the first attribute value inside the currently bound <tt>GL_ARRAY_BUFFER</tt>. For historic reasons, the offset is passed as a pointer, but the parameter is used for its integer value, so we pass an integer cast to <tt>void*</tt>.
+</p>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-vertex-attrib-array-01.png">
+<p>In our case, our vertex array consists only of the single <tt>vec2 position</tt> attribute; if we had multiple attributes, the attributes' values could be either interleaved, like an array of <tt>struct</tt>s, or kept in separate arrays. The flexibility <tt>glVertexAttribPointer</tt> gives in letting us choose the stride and offset of each attribute can accommodate either arrangement. Different attributes can even be potentially read from separate buffer objects; changing the <tt>GL_ARRAY_BUFFER</tt> binding won't affect the buffer used by attribute array pointers that have already been set.
+</p>
+<p>(The <i>normalized?</i> argument I skipped mentioning above is used with arrays of integers in the vertex array. If true, the components will be mapped from the range of their integer type, such as 0&ndash;255 for an unsigned byte, to the floating-point range 0.0&ndash;1.0, like color components in an image. If false, their integer values will be preserved. For components like ours that are already floating-point, it doesn't have any effect.)</p>
+</p>
+
+<h3>Submitting the rendering job</h3>
+<pre>
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_resources.element_buffer);
+    glDrawElements(
+        GL_TRIANGLE_STRIP,  /* mode */
+        4,                  /* count */
+        GL_UNSIGNED_SHORT,  /* type */
+        (void*)0            /* element array buffer offset */
+    );
+</pre>
+<p>
+<tt>glDrawElements</tt> is the function that sets the graphics pipeline in motion. We tell it what triangle assembly mode we want, how many vertices to assemble triangles from, the type of the components of our element array, and the offset within the currently bound <tt>GL_ELEMENT_ARRAY_BUFFER</tt> of the first component to render, again as a fake-pointer-but-really-integer. It will then take the pointed-to element array indexes, gather them up with the currently bound shader program, uniform values, texture units, and vertex attribute pointers we just set up, bundle everything into a rendering job, and place the job in the GPU's queue.
+</p>
+
+<h3>Cleaning up after ourselves</h3>
+<pre>
+    glDisableVertexAttribArray(g_resources.attributes.position);
+</pre>
+<p>"Always leave things the way you found them," the late Bill Brasky once advised. A downside of OpenGL's state machine model is that all of these bindings and settings persist globally, even after <tt>glDrawElements</tt> is called. This means that we have to take some care with how our OpenGL code will interact with all of the other OpenGL code throughout the program. While there is no other OpenGL code yet in this program to interact with, we should still start learning good habits. Particular care is needed with vertex attributes: In a complex program involving multiple shader programs and multiple vertex arrays, an incorrectly enabled vertex attribute array could potentially cause <tt>glDrawElements</tt> to try to feed the GPU invalid data, leading to corrupted output or segfaults. It's a good idea to keep a vertex array attribute enabled only as long as it's needed. Here, we disable the vertex attribute array for <tt>position</tt>.
+</p>
+<p>
+You might also be thinking, we're rebinding all of the same objects, setting all of the same uniform values (aside from the <tt>fade_factor</tt>), and reactivating all of the same vertex attributes every time we render. If the state settings persist across <tt>glDrawElements</tt> calls, we could technically do without almost all of this per-frame setup, getting away with binding everything once before entering <tt>glutMainLoop</tt> and having <tt>render</tt> only update the fade factor and call <tt>glDrawElements</tt>. But again, it's a good idea to set up all the state you expect at the point you expect it. Depending on bits of OpenGL state to remain unchanged between frames is an easy way to breed bugs as your programs grow.
+</p>
+
+<h3>Displaying our finished scene</h3>
+<pre>
+    glutSwapBuffers();
+}
+</pre>
+<p>
+We only have the one rendering job to wait on, so now that we've submitted the job and tidied up, we can sync immediately. The GLUT function <tt>glutSwapBuffers</tt> waits for all running jobs to finish, then swaps the color buffers of our double-buffered framebuffer, moving the currently visible buffer to the "back" to be rendered into by the next frame, and pushing the image we just rendered to the "front", showing the newly-rendered scene in our window. Our rendering is done!
+</p>
+
+<h3>Animating the scene</h3>
+<pre>
+static void update_fade_factor(void)
+{
+    int milliseconds = glutGet(GLUT_ELAPSED_TIME);
+    g_resources.fade_factor = sinf((float)milliseconds * 0.001f) * 0.5f + 0.5f;
+    glutPostRedisplay();
+}
+</pre>
+<p>
+To keep the image moving, our <tt>glutIdleFunc</tt> callback continuously updates the value we assign to the <tt>fade_factor</tt> uniform. GLUT maintains a millisecond timer we can access with <tt>glutGet(GLUT_ELAPSED_TIME)</tt>; we just feed this through the standard C <tt>sinf</tt> function to get a smooth, periodic fade from zero to one and back. Every time we update the fade factor, we call <tt>glutPostRedisplay</tt>, which forces our <tt>render</tt> callback to get invoked again, updating the window.
+</p>
+
+<h3>Compiling and running the program, again</h3>
+<p>It's finally time to compile and run the whole program with all of our new code. The command to build the executable will look much as it did <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html#gl2-compiling">last time when we built the dummied-out version</a>, but this time, you'll build from the real <tt>hello-gl.c</tt> and <tt>util.c</tt> source files. If you use the Makefiles, you can build with the default target:</p>
+<pre>
+make -f Makefile.MacOSX # or Makefile.Unix or Makefile.Mingw
+</pre>
+<pre>
+nmake /f Nmakefile.Windows
+</pre>
+<p>Once built, the program assumes that all its image and shader resources are in the current directory, so it will work best to run it from the command line from inside the directory containing the executable, the image files, and the shader source. We can finally bask in the glory of our hard work:</p>
+<center><img src="http://duriansoftware.com/joe/media/gl2-screenshot.png"></center>
+
+<h3>Conclusion</h3>
+
+<p>That was admittedly a long way to go for a simple "hello world". But the framework we've built up here is actually pretty flexible; you could swap in your own images and tweak the shaders to transform or filter the images further before sampling them, all without recompiling the C. In the next chapter, we'll mess around with the vertex shader to demonstrate the basics of <span class="smallcap">3d</span> transformation and projection.</p>
+<p>If you're interested in breaking off on your own at this point and looking over the <a href="http://www.opengl.org/registry/">OpenGL specifications</a> yourself, note that the OpenGL 2 specs still include all of the deprecated features I've been avoiding discussing. I would highly recommend looking instead at the spec for OpenGL 3.1 or later, being sure to look at the "core profile" specs rather than the ones for the "compatibility profiles". While OpenGL 3 and later add a lot of new features over OpenGL 2, all of the basic APIs I've gone over here for OpenGL 2 still form the basis for newer versions.
+<p><a href="http://www.khronos.org/registry/gles/">OpenGL ES</a> 2 is also worth looking at. It consists mostly of the forward-looking subset of OpenGL 2 I've been covering; all of the OpenGL APIs I've mentioned are present in OpenGL ES 2 as well. OpenGL ES also adds additional features for mobile platforms, such as fixed-point numeric support and offline shader compilation, that the desktop version of the spec doesn't offer. If you want to try your hand at OpenGL ES development, it is part of the Android NDK and iPhone SDKs, among other mobile development platforms. On Windows, Google's <a href="http://code.google.com/p/angleproject/">ANGLE project</a> also provides an implementation of OpenGL ES 2 built on top of DirectX.</p>
+<p>Hopefully this chapter has given you a good taste of the OpenGL API and GLSL language. As always, if you felt something I touched on bears clarification, or there's something in particular you'd like to see me cover, <script>male_to('com', 'joe', 'duriansoftware', 'drop me a line')</script>.
+</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">&laquo; Chapter 2.2</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html">Chapter 3 &raquo;</a></h4>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

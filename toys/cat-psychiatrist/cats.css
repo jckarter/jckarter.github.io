@@ -1,0 +1,27 @@
+body {background-color:#fed; font-family:Helvetica, Verdana, sans-serif; font-size:20px; max-width:900px; margin:auto; line-height:125%;}
+#questionnaire {-webkit-transition:opacity 1s;}
+#report.ready + #questionnaire {opacity:0.2;}
+#pictureform {position:relative; display:inline-block; border:1px solid black; text-align:center; background-color:#fff; color:#777;}
+#picturechoose {padding:0px 20px;}
+#picturecontent {display:none; z-index:1; padding:0; margin:0;}
+#pictureclear {position:absolute; top:5px; left:5px; z-index:2; background-color:#777; color:#fff; border:none; border-radius:100%; opacity:0.5; display:none; font-weight:bold;}
+#picturecontent:hover #pictureclear {display:block;}
+#pictureclear:active {background-color:#000;}
+#picturedisplay {display:block; margin:0; padding:0;}
+.errormessage {display:none; color:#f66;}
+.invalid + .errormessage {display:inline;}
+
+input[type=file] {border:1px solid #ddd; padding:2px;}
+input[type=text], input[type=button], select {border:1px solid black; font-family:Helvetica, Verdana, sans-serif; font-size:20px;}
+input[type=text] {background-color:#fff;}
+input[type=button] {background-color:#ddd;}
+input[type=button]:active {background-color:#777;}
+
+#report {opacity:0; position:absolute; background-color:#fff; border:1px solid #777; z-index:100; width:750px; top:20px; left:50%; -webkit-transform:translate(0,300%) rotate(25deg); -moz-transform:translate(0,300%) rotate(25deg); -ms-transform:translate(0,300%) rotate(25deg); -o-transform:translate(0,300%) rotate(25deg); transform:translate(0,300%) rotate(25deg); margin-left:-375px; min-height:100px; padding:10px; box-shadow:0px 20px 40px rgba(0,0,0,0.5); font-family:Cambria, Georgia, Verdana, sans-serif; -webkit-transition:-webkit-transform 1s; -moz-transition:-moz-transform 1s; -ms-transition:-ms-transform 1s; -o-transition:-o-transform 1s; transition:transform 1s;}
+#reportheader {height:32px; font-size:28px;}
+#reportpic {margin-right:5px; border:1px solid black; height:100%; width:auto; vertical-align:middle;}
+#reportsig {float:right;}
+#report hr { border:none; text-align:center; color:#777; word-spacing:0.15in; }
+#report hr:after { content:"\2699 \20 \2689 \20 \2699"; }
+#report.ready {opacity:1; display:block; -webkit-transform:none; -moz-transform:none; -ms-transform:none; -o-transform:none; transform:none;}
+#reportdismiss {position:absolute; top:100%; left:50%; width:100px; height:30px; margin-top:-15px; margin-left:-50px; border-radius:25px;}

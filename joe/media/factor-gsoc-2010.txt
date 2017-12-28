@@ -1,0 +1,63 @@
+ -  Describe your organization.
+
+The Factor project has been working for seven years on Factor, a concatenative programming language with an interactive development environment inspired by Smalltalk and Lisp machines, an optimizing native code compiler written in itself targeting x86 and PowerPC, and an extensive standard library. Slava Pestov is the original and primary developer; contributions to the implementation and library have come from a small, close-knit team of major developers as well as several dozen other contributors.
+
+ -  Why is your organization applying to participate in GSoC 2010? What do you hope to gain by
+    participating?
+
+We hope to improve Factor's visibility within the academic community. As a dynamic managed language implementation not based on the JVM, CLR, LLVM, or other prefab VM, Factor provides unique opportunities for students interested in language design, interactive development, UI design, compiler technology, and related topics to apply their skills. Factor is both more advanced than most scripting language implementations and simpler than the JVM, making it ideal for study.
+
+ -  Did your organization participate in past GSoCs? If so, please summarize your involvement
+    and the successes and challenges of your participation.
+ -  If your organization has not previously participated in GSoC, have you applied in the past?
+    If so, for what year(s)?
+
+This is our first year applying to GSoC.
+
+ -  What license(s) does your project use?
+
+The Factor distribution is under the BSD license.
+
+ -  What is the URL for your ideas page?
+
+http://concatenative.org/wiki/view/Factor/GSoC/2010
+
+ -  What is the main development mailing list for your organization?
+
+factor-talk@lists.sourceforge.net
+
+ -  What is the main IRC channel for your organization?
+
+#concatenative on irc.freenode.net
+
+ -  Does your organization have an application template you would like to see students use? If
+    so, please provide it now.
+
+...
+
+ -  Who will be your backup organization administrator?
+
+Slava Pestov 
+
+ -  What criteria did you use to select these individuals as mentors? Please be as specific as
+    possible.
+
+Slava is the original developer of Factor, and has the deepest knowledge of the Factor VM, libraries, and applications. Joe Groff has contributed for two years and is familiar with most of the Factor code base as well.
+
+ -  What is your plan for dealing with disappearing students?
+
+We hope to establish good communication with our students early on, before GSoC proper begins. This way, we can get a clear picture of our students' schedules, know about any competing plans they have during the summer, negotiate reasonable regular milestones for their work, and remain apprised of any changes in our students' plans in a timely manner. Constant communication will also ensure that our students don't get discouraged by being bogged down or lost going in the wrong direction with their projects.
+
+ -  What is your plan for dealing with disappearing mentors?
+
+Between IRC, IM, and mailing lists, the core Factor developers stay in fairly constant contact. We will be able to foresee and plan for mentors being unavailable ahead of time. There are many Factor developers who can assume the mantle of substitute mentor if necessary.
+
+ -  What steps will you take to encourage students to interact with your project's community
+    before, during and after the program?
+
+Before the program, we will provide our students with smaller, one- or two-hour projects that will allow them to get acquainted with Factor. This will encourage them to participate in our IRC channel and mailing list and become known within the community. When summer comes around, they will then be more likely to continue participating as they take on their primary projects. 
+
+ -  What will you do to ensure that your accepted students stick with the project after GSoC
+    concludes?
+
+The Factor project is small, and contributions have high visibility within the Factor community. The amount of responsibility they take in developing significant additions to Factor will encourage them to remain engaged with Factor after they've completed their GSoC projects.

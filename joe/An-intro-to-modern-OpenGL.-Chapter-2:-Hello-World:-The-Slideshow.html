@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 2: Hello World: The Slideshow</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">An intro to modern OpenGL. Chapter 2: Hello World: The Slideshow</a></h3>
+<h4>updated April 19, 2010 01:03:35 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html">&laquo; Chapter 1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">Chapter 2.1 &raquo;</a></h4>
+<p>
+<b>Updates:</b> I've fixed a few problems people have reported, particularly problems building on Unix and using Visual C++. This chapter also got featured <a href="http://www.reddit.com/r/programming/comments/biw8t/an_intro_to_modern_opengl_chapter_2_hello_world/">on Reddit</a>.
+</p>
+<p>
+In the <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html">previous chapter</a> I gave a big-picture overview of the graphics pipeline. Now it's time to put it into action. Before we try rendering any fancy <span class="smallcap">3d</span> scenes, I'll follow standard tutorial protocol and use a simple, two-dimensional "hello world" app to demonstrate the basics of the OpenGL API. We're going to take this image:
+</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl2-hello-1.png"></center>
+<p>
+and draw it to an appropriately-sized window. But static images are kind of dull&mdash;how about we make it a little more interesting by fading back and forth with this image:
+</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl2-hello-2.png"></center>
+<p>
+Still not all that exciting a program, but despite its simplicity, the program will exercise almost all the parts of OpenGL a more complex program would. The completed source code is up on Github <a href="http://github.com/jckarter/hello-gl">here</a>. At 380 lines of C and a couple dozen lines of shader code, this program may seem like overkill just to draw an image to the screen. However, much of it will lay the groundwork for the more interesting demos to come. The <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl.c"><tt>hello-gl.c</tt></a> source file contains the OpenGL rendering bits, while <a href="http://github.com/jckarter/hello-gl/blob/master/util.c"><tt>util.c</tt></a> contains boring utility functions for reading TGA image files. I've included the two images, <tt>hello1.tga</tt> and <tt>hello2.tga</tt>, in this format, because it's easy to parse without depending on an external library. Our shader code lives in two files: <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl.v.glsl"><tt>hello-gl.v.glsl</tt></a> for the vertex shader, and <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl.f.glsl"><tt>hello-gl.f.glsl</tt></a> for the fragment shader.
+</p>
+<p>
+In this chapter, I'll explain how the different parts of the <tt>hello-gl</tt> program use the OpenGL API to feed data into the graphics pipeline and put it in action. I'll also give a brief overview of the GLSL language when we look at shaders. It's a lot to cover all in one blog post, so I'll break the chapter up into four parts. In this first part, we'll get a window open with GLUT. In the second part, we'll set up the buffer and texture objects that will contain the raw vertex and image data for our program. After that, we'll write the shader code that will process that data into our final image on screen, and then feed the shader into OpenGL. In the final article, we'll go through the OpenGL calls that actually render to the screen. Now that our game plan's laid out, let's start putting the players on the field. We'll start things off by setting up GLUT and getting an empty window up on the screen.
+</p>
+<h3>OpenGL header files</h3>
+<pre>
+#include &lt;stdlib.h&gt;
+#include &lt;GL/glew.h&gt;
+#ifdef __APPLE__
+#  include &lt;GLUT/glut.h&gt;
+#else
+#  include &lt;GL/glut.h&gt;
+#endif
+</pre>
+<p>Different platforms keep their OpenGL headers in different places, but with GLEW, you don't need to worry about that. Including <tt>GL/glew.h</tt> will pull in the system OpenGL headers for you, wherever they may live. Unfortunately, including GLUT still requires you to manually step around some cross-platform landmines. Its header traditionally lives in <tt>GL/glut.h</tt>, but MacOS X's bundled GLUT framework uses Apple's own header file convention, putting the GLUT header in <tt>GLUT/glut.h</tt>. There's also a bug in the way recent versions of Visual Studio's standard C headers interact with <tt>glut.h</tt> that requires <tt>stdlib.h</tt> to be included before it.
+</p>
+
+<h3>Setting up our window with GLUT</h3>
+<pre>
+int main(int argc, char** argv)
+{
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+    glutInitWindowSize(400, 300);
+    glutCreateWindow("Hello World");
+    glutDisplayFunc(&render);
+    glutIdleFunc(&update_fade_factor);
+</pre>
+<p>
+GLUT provides a limited, but straightforward and portable, interface to the window system. After prepping GLUT by calling <tt>glutInit</tt>, we use <tt>glutInitDisplayMode</tt> to specify what buffers our default framebuffer should have. In our case, a color buffer (<tt>GLUT_RGB</tt>) with double buffering (<tt>GLUT_DOUBLE</tt>) is sufficient. (<a href="http://en.wikipedia.org/wiki/Double_buffering#Double_buffering_in_computer_graphics">Double buffering</a> provides two color buffers to the framebuffer, alternating which buffer is displayed onscreen and which buffer is drawn into every frame so that animation appears smooth.) If we needed a depth or stencil buffer, we could also ask for them here. We then set the initial size for our window to the 400&#xd7;300 size of our images with <tt>glutInitWindowSize</tt> and create the window with <tt>glutCreateWindow</tt>. Finally, we designate two callbacks to receive window events: a <tt>glutDisplayFunc</tt> to render our image when the window needs displaying, and a <tt>glutIdleFunc</tt> to continuously update the fade factor between the two images over time.
+</p>
+<pre>
+    glewInit();
+    if (!GLEW_VERSION_2_0) {
+        fprintf(stderr, "OpenGL 2.0 not available\n");
+        return 1;
+    }
+</pre>
+<p>
+After GLUT creates our window, it prepares OpenGL so that we can start making calls into the library. The first thing we do is initialize GLEW. When <tt>glewInit</tt> is called, it sets a bunch of flags based on what extensions and OpenGL versions are available. We check the <tt>GLEW_VERSION_2_0</tt> flag here to ensure we have OpenGL 2.0 available before proceeding. Besides the version flags it sets, GLEW's role is mostly invisible, and we won't need to interact with it after it's been initialized.
+</p>
+<pre>
+    if (!make_resources()) {
+        fprintf(stderr, "Failed to load resources\n");
+        return 1;
+    }
+
+    glutMainLoop();
+    return 0;
+}
+</pre>
+<p>With GLEW initialized, we call our <tt>make_resources</tt> function to set up our OpenGL resources. We'll build up that function over the next few parts of this chapter. If our resources load successfully, <tt>glutMainLoop</tt> takes over. It displays the window, starts receiving UI events from the window system, and invokes the callbacks we set up in response to those events. It will also exit the program for us when the user quits. The <tt>return 0</tt> merely suppresses compiler warnings and never actually gets reached.
+</p>
+<h3>Compiling and running our program</h3>
+<p>
+At this point, we can stub out our GLUT callbacks and <tt>make_resources</tt> function and get a working, if pointless, program:
+</p>
+<pre>
+static int make_resources(void)
+{
+    return 1;
+}
+</pre>
+<pre>
+static void update_fade_factor(void)
+{
+}
+</pre>
+<pre>
+static void render(void)
+{
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glutSwapBuffers();
+}
+</pre>
+<p>
+<a name="gl2-compiling"><tt>glClearColor</tt> sets an <a href="http://en.wikipedia.org/wiki/RGBA">RGBA</a> clear color (in this case, white), which <tt>glClear</tt> then uses to fill the framebuffer's color buffer. <tt>glutSwapBuffers</tt> then brings our cleared color buffer to the screen. With these stubs in place, we can now compile and run our program. This stubbed-out version is in the Github repo as <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl-dummy.c"><tt>hello-gl-dummy.c</tt></a>. The command to compile the program and link it to the OpenGL, GLUT, and GLEW libraries will vary across platforms. On most Unixes it should look something like this:
+</a></p>
+<pre>
+gcc -o hello-gl-dummy hello-gl-dummy.c \
+    -I/usr/X11R6/include -L/usr/X11R6/lib \
+    -lGL -lGLEW -lglut
+</pre>
+<p>On MacOS X:</p>
+<pre>
+# Assuming GLEW was installed to /opt/local
+gcc -o hello-gl-dummy hello-gl-dummy.c \
+    -I/opt/local/include -L/opt/local/lib \
+    -framework OpenGL -framework GLUT -lGLEW
+</pre>
+<p>On Windows with Visual C++:</p>
+<pre>
+cl /Fohello-gl-dummy.obj /c hello-gl-dummy.c
+link /out:hello-gl-dummy.exe hello-gl-dummy.obj \
+    opengl32.lib glut32.lib glew32.lib
+</pre>
+<p>On Windows with mingw:</p>
+<pre>
+gcc -o hello-gl-dummy.exe hello-gl-dummy.c \
+    -lopengl32 -lglut32 -lglew32
+</pre>
+<p>
+The repo also includes makefiles for each of these platform groups. You can build this version of the program using the <tt>hello-gl-dummy</tt> (or <tt>hello-gl-dummy.exe</tt> on Windows):
+</p>
+<pre>
+make -f Makefile.MacOSX hello-gl-dummy # or Makefile.Unix or Makefile.Mingw
+</pre>
+<pre>
+nmake /f Nmakefile.Windows hello-gl-dummy.exe
+</pre>
+<p>Once you've built the program, you should then be able to run the program and get a white window, as promised:
+<center><img src="http://duriansoftware.com/joe/media/gl2-dummy-screenshot.png"></center>
+Close the window, or on MacOS X quit the application, to dismiss it.
+</p>
+<h3>Next time, buffers and textures</h3>
+<p>
+With the red tape of getting a window open out of the way, we're ready to actually feed our vertexes and images into OpenGL. In the next article, I'll introduce OpenGL's buffer and texture objects.
+</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html">&laquo; Chapter 1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">Chapter 2.1 &raquo;</a></h4>
+
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

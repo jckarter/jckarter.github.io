@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>The Factor game framework</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/The-Factor-game-framework.html">The Factor game framework</a></h3>
+<h4>updated May 11, 2009 11:32:03 PDT</h4>
+<p>For kicks, I felt like taking a couple weeks and trying to write some game infra&shy;structure in <a href="http://factorcode.org/">Factor</a>. You can see some of my handiwork in the <tt>terrain</tt> demo I recently threw together. If you have an OpenGL 2.0-capable graphics card, download a recent Factor build for Windows or Mac and run from the listener:</p>
+<pre>"terrain" run</pre>
+<p>(X11 isn't supported by some of the libraries yet.) Wait a few seconds and you should see this:</p>
+<img src="http://duriansoftware.com/joe/media/terrain-screenshot.png">
+<p>Use the <tt>WASD</tt> keys, spacebar, and mouse to walk, fly, and look around, respectively. Hit Escape when you get bored. Here's what I've added to Factor to make the demo possible:</p>
+<h3>The UI library</h3>
+<p><a href="http://docs.factorcode.org/content/article-ui.html">Factor's UI</a> already provided a decent cross-platform interface to the OpenGL implementations on X11, MacOS X and Windows. However, the UI library does a lot of OpenGL state manipulation that gadgets have to work within (or work around) to behave alongside other gadgets. If you just wanted an empty window and a naked OpenGL context to have your way with, there was nowhere to hide from the UI's disapproving glare.</p>
+<p>&hellip;Until now, that is. I shoved all that gadget management code into <a href="http://docs.factorcode.org/content/article-ui.gadgets.worlds-subclassing.html">a handful of generic functions</a> that you can override by providing your own subclass of <tt>world</tt> (Factor's representation of a window). I also added <a href="http://docs.factorcode.org/content/article-ui.pixel-formats.html">pixel format selection support</a>, so you can ask for a window with stencil buffers, multisampling, high-resolution depth buffers, or other OpenGL features not required by the UI.</p>
+<h3>Game input</h3>
+<p>I wrote some bindings to <a href="http://msdn.microsoft.com/en-us/library/bb219802(VS.85).aspx?ppud=4">DirectInput</a> on Windows and <a href="http://developer.apple.com/technotes/tn2007/tn2187.html"><tt>IOHIDManager</tt></a> on MacOS X, and wrapped them in a cross-platform <a href="http://docs.factorcode.org/content/article-game-input.html"><tt>game-input</tt> library</a>. Along with some support from the UI for grabbing the mouse pointer, the library provides raw polling access to keyboard, mouse, and game controller input.</p>
+<h3>Game loop</h3>
+<p><a href="http://dewitters.koonsolo.com/gameloop.html">Writing a good game loop is hard.</a> Now you don't have to&mdash;there's a <a href="http://docs.factorcode.org/content/vocab-game-loop.html"><tt>game-loop</tt></a> library already there. Give it a timer tick length and a delegate object, and the loop goes off, drawing your world as quickly as your hardware allows and firing off a timer tick when necessary. The loop also provides a tick-slice fraction to the draw hook to allow the drawing routine to interpolate the game state between timer ticks.</p>
+<p>A <a href="http://docs.factorcode.org/content/word-game-world%2cgame-worlds.html"><tt>game-world</tt></a> class neatly wraps up the above components.</p>
+<h3>Remaining work</h3>
+<p>All this code is still pretty green, so don't quit your job to write games in Factor just yet. Here are a handful of things that need to be worked on:</p>
+<ul>
+<li>The game loop doesn't fire ticks very steadily yet. There's noticeable unevenness when walking around in the terrain demo. It needs some tweaking to interact better with Factor's thread scheduler.
+</li>
+<li><tt>game-input</tt> doesn't support Linux or the BSDs yet. It's been a while since I've used any of those platforms on a desktop machine, and I don't know what the hip way of handling raw input is these days. And <a href="http://braid-game.com/news/?p=364">I'm afraid to ask</a>.</li>
+<li>I haven't investigated audio at all. Factor has an <a href="http://docs.factorcode.org/content/vocab-openal.html">OpenAL binding</a> that's been around for a while and has been used for a couple of simple demos. However, OpenAL is much lower-level than something like <a href="http://www.fmod.org/">fmod</a>, and you'd need to build a lot on top of it to use it in a game.
+<li>Factor's UI has a <a href="http://docs.factorcode.org/content/word-set-fullscreen__que__,ui.html"><tt>set-fullscreen</tt> function</a>, but this just hides system decorations and resizes the window to cover the screen. At some point I'd like to make it support seizing the screen, changing the resolution, and using a true fullscreen OpenGL context.</li>
+</ul>
+<p>The terrain demo itself is very basic too; it only generates one small segment of terrain, and the Perlin noise code I wrote takes much longer than it should to generate segments. Shortcomings aside, Factor's a lot of fun to work with. The FFI makes binding to system libraries trivial. Its code is well-compartmentalized, and even old, relatively crusty code like the UI internals is easy to work with and add features to. I don't think any of the problems above are going to be hard to fix over time.</p>
+
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 2.1: Buffers and Textures</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">An intro to modern OpenGL. Chapter 2.1: Buffers and Textures</a></h3>
+<h4>updated April 25, 2010 13:17:27 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">&laquo; Chapter 2</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">Chapter 2.2 &raquo;</a></h4>
+<p>
+<a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">Last time</a>, we got a window open and awaiting the instructions that will render our hello world program. But before we actually draw anything, we'll need to supply OpenGL with our data by creating <b>objects</b> of various kinds and uploading data into them. Let's go over the objects we'll need to set up:</p>
+<h3>The pipeline revisited</h3>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl2-pipeline-01.png"></center>
+<p>
+By walking through <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html#gl1-pipeline">the graphics pipeline</a> we went over in the first chapter again, this time from the perspective of our "hello world" program, it will be clear what objects we'll need. Starting from the input end, our vertex array will contain four vertices, which the vertex shader will assign to the corners of the window. The element array will compose these four vertices into a two-triangle strip, making a solid rectangle that covers the window. We will build a couple of small <b>buffer objects</b> to hold both of these arrays in GPU memory. Our uniform state will consist of our two "hello" images and the fade factor used to blend them. Each of those images will need its own <b>texture object</b>. In addition to mapping our vertices to the corners of the screen, the vertex shader will assign a set of texture coordinates to each vertex, mapping the vertex to its corresponding corner on the textures. The rasterizer will then interpolate these texture coordinates across the surface of the rectangle so that, finally, our fragment shader can sample the two textures and blend them together using the fade factor. To plug the shaders into OpenGL, we'll create a <b>program object</b> to link together the vertex and fragment <b>shader objects</b>. In this article, we'll set up the buffer and texture objects; next time, we'll work on the shaders.
+</p>
+<h3>OpenGL C types</h3>
+<p>
+OpenGL defines its own set of <tt>GL*</tt> typedefs that mirrors the standard menagerie of C types: <tt>GLubyte</tt>, <tt>GLbyte</tt>, <tt>GLushort</tt>, <tt>GLshort</tt>, <tt>GLuint</tt>, <tt>GLint</tt>, <tt>GLfloat</tt>, and <tt>GLdouble</tt> alias their corresponding C types as you would expect. On top of this basic set of types, OpenGL provides some additional typedefs with more semantic meaning:
+<ul>
+<li><tt>GLchar*</tt>, used by functions that handle strings and expect pointers to null-terminated, ASCII strings
+<li><tt>GLclampf</tt> and <tt>GLclampd</tt>, typedefs for <tt>GLfloat</tt> and <tt>GLdouble</tt> used when values are expected to be in the range zero to one
+<li><tt>GLsizei</tt>, an integer typedef suitable for holding the size of a memory buffer, akin to the standard C library's <tt>size_t</tt>
+<li><tt>GLboolean</tt>, a typedef for <tt>GLbyte</tt> intended to contain a <tt>GL_TRUE</tt> or <tt>GL_FALSE</tt> value, similar to C++ or C99's <tt>bool</tt>
+<li><tt>GLenum</tt>, a typedef of <tt>GLuint</tt> intended to contain a predefined <tt>GL_*</tt> constant
+<li><tt>GLbitfield</tt>, another <tt>GLuint</tt> typedef intended to contain the bitwise-or of one or more <tt>GL_*_BIT</tt> masks
+</ul>
+</p>
+<h3>Storing our resources</h3>
+<pre>
+<a name="gl2-g-resources-buffers-textures">static struct {
+    GLuint vertex_buffer, element_buffer;
+    GLuint textures[2];
+
+    /* fields for shader objects ... */
+} g_resources;</a>
+</pre>
+<p>A global struct variable like the <tt>g_resources</tt> struct here is the easiest way to share data between our initialization code and our GLUT callbacks. OpenGL uses opaque <tt>GLuint</tt> values for object handles. Our <tt>g_resources</tt> struct contains two <tt>GLuint</tt> fields we'll use to hold the names of our vertex and element array buffer objects, and a two-element array of <tt>GLuint</tt>s for our two texture objects. We'll add more fields to hold our shader objects when we construct them in the next article.
+
+<h3><a name="gl2-object-model">The OpenGL object model</a></h3>
+<p>
+OpenGL's convention for manipulating objects is a bit unusual. You create objects by generating one or more object <b>names</b> using a <tt>glGen*s</tt> function (such as <tt>glGenBuffers</tt> or <tt>glGenTextures</tt>). As mentioned above, these names are opaque <tt>GLuint</tt> values. Any data owned or associated with the object is managed internally by OpenGL. That part's fairly typical. How you use the name is the unusual part: to actually manipulate an object, you first bind its name to an OpenGL-defined <b>target</b> by calling the corresponding <tt>glBind*</tt> function (<tt>glBindBuffer</tt> or <tt>glBindTexture</tt>). You then provide the <i>target</i> as an argument to the OpenGL calls that set properties on or upload data into the bound object. Target bindings also affect related OpenGL calls that don't explicitly take the target as a parameter, as we'll see when we discuss rendering. For now, let's see how this pattern plays out when constructing buffer objects:
+</p>
+<h3>Buffer objects</h3>
+<pre>
+static GLuint make_buffer(
+    GLenum target,
+    const void *buffer_data,
+    GLsizei buffer_size
+) {
+    GLuint buffer;
+    glGenBuffers(1, &buffer);
+    glBindBuffer(target, buffer);
+    glBufferData(target, buffer_size, buffer_data, GL_STATIC_DRAW);
+    return buffer;
+}
+</pre>
+<p>
+Buffer objects are handles to OpenGL-managed memory. Among other things, they are used to store vertex arrays (using the <tt>GL_ARRAY_BUFFER</tt> target) and element arrays (using the <tt>GL_ELEMENT_ARRAY_BUFFER</tt> target). When you allocate a buffer with <tt>glBufferData</tt>, you supply a <b>usage hint</b> that indicates how often you intend to access and change the data in the buffer, and OpenGL decides the best place in CPU or GPU memory to store its data based on that hint. The hint does not actually constrain how the buffer gets used, but using buffers against their hinted usage will lead to poor performance. For our program, we have constant vertex and element arrays that never need to change, so we give <tt>glBufferData</tt> the <tt>GL_STATIC_DRAW</tt> hint. The <tt>STATIC</tt> part indicates that we don't ever intend to change the data. Buffers can also be hinted either <tt>DYNAMIC</tt>, which indicates we intend to write into the buffer frequently, or <tt>STREAM</tt>, which indicates we intend to regularly replace the entire contents of the buffer. The <tt>DRAW</tt> part indicates that we intend the buffer to be read from only by the GPU. The alternatives to <tt>DRAW</tt> are <tt>READ</tt>, which indicates a buffer which will be primarily read back by the CPU, and <tt>COPY</tt>, which indicates that the buffer will be a conduit between the CPU and GPU and that neither should be given preference. Vertex and element array buffers will almost always use a <tt>GL_*_DRAW</tt> hint.
+</p>
+<pre>
+static const GLfloat g_vertex_buffer_data[] = { 
+    -1.0f, -1.0f,
+     1.0f, -1.0f,
+    -1.0f,  1.0f,
+     1.0f,  1.0f
+};
+static const GLushort g_element_buffer_data[] = { 0, 1, 2, 3 };
+</pre>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-vertex-array-01.png">
+<p><tt>glBufferData</tt> sees your source data much as <tt>memcpy</tt> does: just a dumb stream of bytes. We don't tell OpenGL the structure of our arrays until we actually render from them. This allows buffers to store vertex attributes and other data in almost any format, or to feed the same data in different ways to different render jobs. In our case, we just specify the corners of our rectangle as a set of four two-component vectors. Our element array is also simple, an array of <tt>GLushort</tt>s indexing the four vertex elements in order so that they can be assembled as a rectangular triangle strip. In desktop OpenGL, an element array can consist of 8-bit <tt>GLubyte</tt>, 16-bit <tt>GLushort</tt>, or 32-bit <tt>GLuint</tt> indices; for OpenGL ES, only <tt>GLubyte</tt> or <tt>GLushort</tt> can be used. We now fill in our <tt>make_resources</tt> with calls to <tt>make_buffer</tt> that allocate and fill our buffers as follows:
+</p>
+<pre>
+<a name="gl2-make-resources-buffers">static int make_resources(void)
+{
+    g_resources.vertex_buffer = make_buffer(
+        GL_ARRAY_BUFFER,
+        g_vertex_buffer_data,
+        sizeof(g_vertex_buffer_data)
+    );
+    g_resources.element_buffer = make_buffer(
+        GL_ELEMENT_ARRAY_BUFFER,
+        g_element_buffer_data,
+        sizeof(g_element_buffer_data)
+    );
+    /* make <a href="#gl2-make-resources-textures">textures</a> and shaders ... */
+}
+</a></pre>
+<h3>Texture objects</h3>
+<pre>
+static GLuint make_texture(const char *filename)
+{
+    GLuint texture;
+    int width, height;
+    void *pixels = read_tga(filename, &width, &height);
+
+    if (!pixels)
+        return 0;
+</pre>
+<p>
+As I mentioned in the last article, I'm using the <a href="http://en.wikipedia.org/wiki/Truevision_TGA">TGA format</a> to store our "hello world" images. I won't waste time going over the parsing code here; it's in <a href="http://github.com/jckarter/hello-gl/blob/master/util.c"><tt>util.c</tt></a> in the Github repo if you want to see it. TGA's pixel data is stored as a flat, packed, uncompressed array of three-byte <a href="http://en.wikipedia.org/wiki/RGB">RGB</a> pixels (actually stored in BGR order), with the pixels ordered starting from the bottom left of the image and working rightward and upward from there. This format is perfect for feeding into OpenGL textures, as we'll see shortly. If reading the image file fails, we return zero, which is the "null object" name that will never be used by a real OpenGL object.
+</p>
+<pre>
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+</pre>
+<p>
+Texture objects provide handles to structured arrays of GPU memory specialized for storing texture data. OpenGL supports several types of textures, each with its own texture target, including <span class="smallcap">1d</span> (<tt>GL_TEXTURE_1D</tt>), <span class="smallcap">2d</span> (<tt>GL_TEXTURE_2D</tt>), and <span class="smallcap">3d</span> (<tt>GL_TEXTURE_3D</tt>) textures. There are also some more specialized texture types we might run into later. <span class="smallcap">2d</span> textures are by far the most common kind. Here we generate and bind a <tt>GL_TEXTURE_2D</tt> for one of our images. Texture objects are distinct from buffer objects, because the GPU handles texture memory very differently from buffer memory:
+</p>
+<h3>Texture sampling and texture parameters</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-texcoords-01.png">
+<p>Whereas the vertex array is fed to the vertex shader one element at a time, and there's no way for any execution of the vertex shader to access other elements, a texture makes its entire contents available to any invocation of either the vertex or fragment shaders. Shaders <b>sample</b> the texture at one or more floating-point <b>texture coordinates</b>. The elements of the texture array are distributed evenly into <b>texture space</b>, a square spanning the coordinates (0, 0) to (1, 1) (or a line segment spanning 0&ndash;1 for <span class="smallcap">1d</span> textures, or a cube spanning (0, 0, 0)&ndash;(1, 1, 1) for <span class="smallcap">3d</span> textures). To distinguish from the <i>x</i>, <i>y</i>, <i>z</i> coordinates of object space, OpenGL labels the axes of texture space <i>s</i>, <i>t</i>, and <i>r</i>. The texture space square is split evenly along these axes into rectangular cells, corresponding to the width and height of the original array. The cell bordering (0, 0) maps to the first element of the texture array, and subsequent elements get distributed to cells rightward and upward across the <i>s</i> and <i>t</i> axes. Sampling the texture at the center of one of these cells gives the corresponding element from the texture array.</p>
+<p>Note that the <i>t</i> axis can be thought of as increasing either upward or downward (or in any direction, really), depending on the representation of the underlying array. The other axes of texture space are similarly arbitrary. Since TGA images store their pixels left-to-right and bottom-to-top, that's how I'm depicting the axes here.</p>
+<pre>
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
+</pre>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-texture-filter-01.png">
+<p>How sampling behaves when a texture is sampled between the centers of texture cells, or at coordinates outside of the zero-to-one range, is controlled by <b>texture parameters</b>, set by the <tt>glTexParameteri</tt> function. The parameters <tt>GL_TEXTURE_MIN_FILTER</tt> and <tt>GL_TEXTURE_MAG_FILTER</tt> control how in-between sample points are treated when the texture is sampled at a resolution lower and higher than its native resolution, respectively. We set them to <tt>GL_LINEAR</tt> to tell the GPU to use <b>linear interpolation</b> to smoothly blend the four elements closest to the sample point. If the user resizes our window, the texture image will then scale smoothly.  Setting the filters to <tt>GL_NEAREST</tt> would tell the GPU to return the texture element closest to the sample point, leading to blocky, pixelated scaling.
+</p>
+<p>
+The <tt>GL_TEXTURE_WRAP_S</tt> and <tt>GL_TEXTURE_WRAP_T</tt> parameters control how coordinates beyond the zero-to-one range on their respective axes are treated; in our case, we don't plan to sample outside that range, so we use <tt>GL_CLAMP_TO_EDGE</tt>, which clamps coordinates below zero to zero, and above one to one. A wrap value of <tt>GL_WRAP</tt> for one or both axes would cause the texture image to be repeated infinitely through texture space along the wrapped axes.
+</p>
+<p>
+Describing it in abstract, texture sampling might sound like just extremely convoluted <span class="smallcap">2d</span> array indexing. It will make more sense if we look at how our fragment shader will wind up sampling the texture:
+</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl2-texture-rasterization-01.png"></center>
+<p>
+In our vertex shader, we'll assign the corners of the texture space square to our rectangle's vertices. When the rasterized size of the rectangle matches the size of the texture (that is, when our window is the same size as the image), the centers of the fragments (the crosses in the figure) will line up with the centers of our texture cells (the circles), and the fragment shader will wind up sampling the image pixel-for-pixel, as you see on the left side. If the rectangle's rasterized size doesn't match the texture, each fragment will wind up sampling between the centers of our texture cells, and the linear filtering will ensure we get a smooth gradient between the texture elements, as the right side demonstrates.
+</p>
+<h3>Allocating textures</h3>
+<pre>
+    glTexImage2D(
+        GL_TEXTURE_2D, 0,           /* target, level of detail */
+        GL_RGB8,                    /* internal format */
+        width, height, 0,           /* width, height, border */
+        GL_BGR, GL_UNSIGNED_BYTE,   /* external format, type */
+        pixels                      /* pixels */
+    );
+    free(pixels);
+    return texture;
+}
+</pre>
+<p>The <tt>glTexImage2D</tt> (or <tt>-1D</tt> or <tt>-3D</tt>) function allocates memory for a texture. Textures can have multiple <b>levels of detail</b>, sampling from a hierarchy of progressively smaller "<a href="http://en.wikipedia.org/wiki/Mipmap">mipmaps</a>" when sampled at lower resolutions, but in our case we only supply the base level zero. Unlike <tt>glBufferData</tt>, <tt>glTexImage2D</tt> expects all of the format information for the allocated memory to be presented up front. The <b>internal format</b> tells the GPU how many color components to store per texture element and at what precision. OpenGL supports all sorts of different image formats; I'll only mention what we use here. Our TGA files use 24-bit RGB pixels, in other words, they sport three 8-bit components per pixel. This corresponds to the <tt>GL_RGB8</tt> internal format. The <b>width</b> and <b>height</b> count the number of texture elements along the <i>s</i> and <i>t</i> axes. (The <i>border</i> argument is a relic and should always be zero.) The <b>external format</b> and <b>type</b> declare the component order and type of our <b>pixels</b> argument, which points to <i>width</i> &#xd7; <i>height</i> packed texture elements of the specified format. TGA stores its unsigned byte-sized pixel components in BGR order, so we use <tt>GL_BGR</tt> for the external format and <tt>GL_UNSIGNED_BYTE</tt> for the component type.
+</p>
+<p>
+Let's add some <tt>make_texture</tt> calls to our <tt>make_resources</tt> function to create our texture objects:
+</p>
+<pre>
+<a name="gl2-make-resources-textures">static int make_resources(void)
+{
+    /* ... make <a href="#gl2-make-resources-buffers">buffers</a> */
+    g_resources.textures[0] = make_texture("hello1.tga");
+    g_resources.textures[1] = make_texture("hello2.tga");
+
+    if (g_resources.textures[0] == 0 || g_resources.textures[1] == 0)
+        return 0;
+    /* make shaders ... */
+}
+</a></pre>
+<h3>Next time, shaders</h3>
+<p>
+We now have our vertex and image data prepped and ready to launch through the graphics pipeline. The next step is to write the shaders that will steer that data through the GPU and land it on the screen. That's what we'll look at in the next part of this chapter.
+</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">&laquo; Chapter 2</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">Chapter 2.2 &raquo;</a></h4>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

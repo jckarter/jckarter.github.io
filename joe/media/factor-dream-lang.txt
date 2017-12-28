@@ -1,0 +1,390 @@
+DENTALPLAN
+Factor Needs Braces {}
+
+- retain concatenative features
+- using factor libraries should feel natural with no/little wrapping
+
+* special characters (can't be used in identifiers)
+    ()[]{}.,:;"\@`$
+
+    [] and "" are used in literal syntax words; see "special identifiers"
+
+* identifiers: can use a-z-a-Z0-9_ +-*/<>=&|^%'!?~
+    # can't start with uppercase char or apostrophe
+    # must have a non-numeric character, else it would be a literal number
+
+    foo
+    bar
+    foo?
+    foo!
+    foo-bar
+    foo-bar
+    foo123
+    foo'
+    foo''
+    foo+
+    2foo
+    1+2
+
+    zim::zang::foo  # qualified vocab name
+    `(foo)`         # use backticks to escape Factor identifiers with special chars
+    `'wut'`         # or that start with '
+    `I-AM-YELLING`  # or capital letter
+
+* stack identifiers
+    '       # anonymous stack identifiers start with '. take a value from the stack
+    'foo    # can be followed by a name for documentation purposes
+    '1      # positional stack identifiers
+
+* special identifier types
+    # starting with a capital letter indicates a special identifier
+
+    Global   # declaration form
+
+    Foo"..." # string literal identifiers end in "
+    Foo[...] # sequence literal identifiers end in [
+
+
+* expressions
+    1                # literal number
+    "foo"            # literal string (`"`)
+    """a "literal" string"""
+    $end$a """literal""" $$$tring$end$
+
+    P"foo"           # named literal string constructor (`P""`)
+                     # string is read to closing "
+
+    # Foo" words automatically get """ and $x$ forms
+    Sonnet"""Shall I compare thee to a summer's day?
+    Thou art more lovely and more temperate"""
+
+    Factor$end$
+        <XML> Let's use some Factor syntax words that haven't been given facades </XML>
+    $end$
+
+    [1, 2, 3]        # literal array constructor (`[]`)
+    [1 + x, foo(2)]  # Runtime expressions are allowed too
+    V[1, 2, 3]       # named literal sequence constructor (`Foo[]`)
+
+    H[a: 1, b: 2]    # colon is pair builder
+                     # x: y === [x, y]
+
+    1, 2 + 2         # comma performs guarded concatenation
+                     # expression after comma can't take inputs off stack, only add values
+                     # => 1, 4
+
+    1, 2; 'a + 'b    # semicolon performs open concatenation
+                     # expression after semicolon can take inputs off stack from expression before
+                     # => 3
+
+    2; 1, ' + 2      # stack args are scoped within semicolon-separated expressions
+                     # comma binds tighter than semicolon
+                     # => 1, 4
+
+    "first", "second"; '2, '1   # positional stack arguments allow for reordering of inputs
+                                # => "second", "first"
+
+    3, 5; '2 - '1    # => 2
+
+    # lines implicitly continued by dangling operators, like ruby
+    1 +
+    2 +
+    3
+
+    1,
+    2,
+    3
+
+    [
+        1, 2, 3,  4,  5,
+        2, 4, 6,  8, 10,
+        3, 6, 9, 12, 15
+    ]
+
+    # dangling comma allowed
+    [1,2,] == [1,2]         # => t
+
+    ---
+    # stack must be empty at end of line unless line is the final line of the block
+
+    # legal:
+
+    {
+        1, 2
+    } # => 1, 2
+
+    {
+        1,
+        2
+    } # => 1, 2
+
+    {
+        1, 2;
+        'a + 'b
+    } # => 3
+
+    # illegal:
+
+    {
+        1, 2        # ERROR: leaves intermediate values on the stack
+        foo
+    }
+
+    {
+        1, 2        # ERROR: leaves intermediate values on the stack
+        ' + '       # ERROR: tries to consume stack values not supplied through a ";"
+    }
+
+    ---
+
+* data structure access
+    foo.bar          # tuple slotting
+    foo[1]           # sequence or assoc indexing (at)
+    foo["bar"]?      # key presence
+    foo[1, 3]        # multiple value indexing
+
+* assignment
+    foo := x          # assignment to mutable/dynamic variable
+    foo.bar := x      # aggregate slot assignment works too
+    foo[1] := x
+
+* blocks
+    {...}                       # unchecked/inferred stack effect
+    .(', ', ') {foo}            # declared effect: three stack inputs, one output
+    .(a, b, c) {foo(a, b, c)}   # three named inputs, one output
+    .(a, b, c; d, e) {foo["bar", "bas"]}
+                                # three named inputs, two outputs
+                                # (one input is assumed by default if no «;» in stack effect
+    .(a: integer, b: float, c: symbol) {foo(a, b, c)} # three named, typed inputs, one output
+    .(a: integer, b: float, c:(d, e)) {foo(a, b, c)}  # three named, typed inputs, one output
+                                                        # argument "c" is a 2-input 1-output block
+
+* function calls
+    # the following all call a three-arg function «foo» with args «1, 2, 3»
+    foo(1, 2, 3)     # function name followed by expression evaluates paren expression, then
+                     # feeds its outputs to the function
+                     # parens needed for multiple inputs
+                     # (function application binds tighter than comma or semicolon)
+                     # the number of outputs from the paren expression must match the number
+                     # of inputs taken by the function
+    1; foo(', 2, 3)
+    1, 2; foo(', ', 3)
+    1, 2; foo(@2, 3) # @n is equivalent to n ' values
+    1, 2; foo(@, 3)  # @ is equivalent to "as many stack values as the function will take"
+
+    1, 2; foo 3      # parens can be omitted for single argument expression
+                     # equivalent to foo(@, x)
+    1, 2, 3; foo @   # parens can be omitted for lone @ expression too
+    1, 2, 3; foo @3  # useful for vararg functions (see below)
+
+    1, 2, 3; foo     # naked function name calls function, feeding inputs off stack
+                     # i.e. «foo» is equivalent to «foo(@)»
+
+* infix syntax
+    # the following all call a two-arg function «+» with args «1, 2»
+
+    +(1, 2)         # "operators" are just normal function names
+    1; + 2          # can use prefix syntax (equivalent to +(@, 2) as above)
+    1 + 2           # or infix syntax (equivalent to +(1, 2) -- no @)
+                    # NB: whitespace around operator required!
+                    #     x+1, y-2, 1+2, etc. are single identifiers
+
+    "foo" member? "o"   # works with any 2-argument function
+    "foo" append "bar"
+    [1,2,3] v+ [4, 5, 6]
+                    # XXX ambiguous: expr op expr or ... var[index] ?
+
+    1 + 2 * 3       # chains of infix expressions use precedence and associativity
+                    #   defined by Operator forms
+
+    (foo + 2) * 3   # paren grouping overrides precedence
+
+    not(not 3)      # nested unary expressions require parens around outer layers
+                    # «not not 3» or «not not(3)» would parse as infix (not) not (3)
+
+* block parameters to higher-order functions
+    # blocks can follow naked function name or argument expression to get added to top of argument
+    # list
+    # these are equivalent:
+    [1, 2, 3]; filter {even?}
+    filter([1, 2, 3]) {even?}
+    filter([1, 2, 3], {even?})
+
+    # other examples
+    map([1, 2, 3]) {' + 1}
+    map([1, 2, 3]).(x) {x + 1}
+
+    [1, 2, 3];
+    map.(x) {x + 1}
+
+    [1, 2, 3]; map-reduce {>string} {append}
+
+    with(x) {'.bar} {'.bas} {'.qux}
+    with(x) .(x){x.bar} .(x){x.bas} .(x){x.qux}
+
+    if(x) {do-this} {do-that}
+
+    if(not x) {
+        do-this
+    } {
+        do-that
+    }
+
+
+* macros
+    cond [
+        {when-this}: {do-this},
+        {when-that}: {do-that},
+        {do-default}
+    ]
+
+    case(x, [
+        1: {do-this},
+        2: {do-that},
+        {do-default}
+    ])
+
+    # if we treat [] like {}, case would look nicer:
+
+    case(x) [
+        1: {do-this},
+        2: {do-that},
+        {do-default}
+    ]
+
+* variable-arity functions
+    # XXX this is a sketchy proposal right now
+
+    # with strict () argument passing, we could support variable-arity functions
+    append(x, y)
+    append(x, y, z)
+    append(x, y, z, w)
+
+    Let sums = map(xs, ys) { + }
+
+    Let x', y', z' = apply(x, y, z) { ' + 1 } # apply === factor bi@, tri@, napply
+    Let zim, zang, zung = with(x) { '.zim } { '.zang } { '.zung }
+                                              # with === factor bi, tri, cleave
+
+    # the arity always needs to be specified when using stack argument passing
+    x, y, z; append             # ERROR: how many args would append take?
+    x, y; append z              # ERROR: likewise
+
+    append(z)                   # parens needed to say "one arg, for real"
+
+    x, y, z; append(', ', ')
+    x, y, z; append @3          # must use argument list or @n to specify arg count
+
+    x, y; append(', ', z)
+    x, y; append(@2, z)
+
+    xs, ys; map @2 { + }
+    x, y, z; apply @3 { ' + 1 }
+    
+    x; append(', y, z)
+
+    # XXX how to define variable-arity functions? how do they map to factor?
+
+
+* definitions
+    # definition words start with capital letter
+    Var x                        # define dynamic variable
+    Var x:integer                # define typed dynamic variable
+    Var x := 1                    # define dynamic variable, initialize in global namespace
+    Var x:integer := 1            # define dynamic variable, typed, initialize in global namespace
+    Var x := 1; y := 2             # define dynamic variables and initialize
+    Var x:integer := 1; y:real := 2
+    Var x, y := foo[bar, bas]     # define dynamic variables, initialize w/ multiple-value expr
+    Var x:string, y:boolean := foo[bar], foo[bar]?
+    Global x                     # define global variable
+    Global x:integer
+    Global x := 1
+    Global x:integer := 1
+
+                                 # Var and Global initialization follow
+                                 # semantics of namespaces::initialize
+                                 # (initialization only happens if variable didn't already exist)
+
+    Let x, y                     # bind local variables to f
+    Let x := 1                    # bind local variable to value of expression
+    Let x:integer := 1
+    Let x := 1; y := 2             # multiple binds like Var
+    Let x:integer := 1; y:real := 2
+    Let x, y := foo[bar, bas]
+    2; Let x := '               # bind local variable to stack value
+
+    Symbol x
+    Symbol x, y                 # no need for separate singular/plural syntax words
+    Singleton x, y
+
+    Fun foo('x, 'y, 'z) {...}                   # inputs left on stack
+    Fun foo('x, 'y, 'z; 'a, 'b) {...}         # inputs left on stack, multiple outputs
+    Fun foo(x, y, z) {...}                      # inputs bound to lexical variables
+    Fun foo(x, y, z; a, b) {...}                # two outputs (output names always documentary)
+    Fun foo(x:integer, y:float, z:string) {...} # typed inputs
+
+    Operator foo+ 4 left                         # define operator precedence and associativity
+
+    Generic foo(a, b, c)
+    Method foo('a, 'b, 'c:bar) {...}   # method with stack args
+    Method foo(a, b:zim, c:zang) {...} # method with name args
+
+    Tuple foo(bar, bas, qux)
+    Tuple foo(bar:integer, bas:float, qux:string) # typed slots
+    Tuple foo(bar:read-only integer, bas, qux)
+    Tuple foo(bar:read-only integer = 17, bas, qux)
+
+    Alias oof = foo
+
+    Use sequences, sequences::deep      # add vocabs to search space
+
+    Use c = alien::c-types               # alias for qualified vocab names
+    c::heap-size(foo)
+
+    From sequences::private (nth-unsafe, set-nth-unsafe)   # add words to search space
+    
+
+* defining literal syntax words
+    # XXX need a decent efficient sequence construction protocol so that stuff
+    # like H[...] and T[...] would generate decent code compared to manual construction
+    Fun H[]('sequence) {to-hashtable}   # Foo[ word gets input as array
+    Fun P""('string)   {make-pathname}   # Foo" word gets input as string
+
+* defining toplevel form syntax words
+    Fun Fun(???) {???} #XXX
+
+* type expressions
+    Type integer = fixnum + bignum                      # union
+    Type prime-integer = integer {prime?}               # predicate
+    Type composite = number - prime-integer             # difference
+    Type even-prime = prime-integer & integer {even?}   # intersection
+    Type maybe-integer = ? integer                      # maybe (shorthand for «f + foo»)
+
+    # type expressions can be used directly in stack effects as anonymous types
+    Fun inc(bar:? integer) {
+        if bar {1 + bar} {1}
+    }
+
+* examples
+    ---
+    file-lines("/usr/share/dict/words");
+    filter {tail?(', "gry")}; map {capitalize};
+    join ", "; surround(', "The ", " Man")
+    ---
+
+    ---
+    Var x = 3
+
+    with-scope {
+        x = 5
+        show(x)
+    }
+    show(x)
+    ---
+
+zim zang                  ==> zim(@,zang)
+zim zang zung             ==> zang(zim,zung)
+zim zang zung zippity     ==> zang(zim,zung(@,zippity)) 
+zim zang zung zippity doo ==> zippity(zang(zim, zung), doo)
+
+... r u srs ur ...

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 3: 3D transformation and projection</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html">An intro to modern OpenGL. Chapter 3: 3D transformation and projection</a></h3>
+<h4>updated July 14, 2010 15:34:17 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">&laquo; Chapter 2.3</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html">Chapter 4 &raquo;</a></h4>
+<p>
+The GPU's specialty, and by extension OpenGL's, is in rendering three-dimensional scenes. If you compare <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">last chapter</a>'s <tt>hello-gl</tt> program to, say, Crysis, you might notice that our demo is missing one of those dimensions (among other things). In this chapter, I'm going to fix that. We'll cover the basic math that makes <span class="smallcap">3d</span> rendering happen, looking at how <b>transformations</b> are done using <b>matrices</b> and how <b>perspective projection</b> works. Wikipedia does a great job going in-depth about the algorithmic details, so I'm going to spend most of my time talking at a high level about what math we use and why, linking to the relevant Wikipedia articles if you're interested in exploring further. As we look at different transformations, we're going to take the vertex shader from last chapter and extend it to implement those transformations, animating the "hello world" image by moving its rectangle around in <span class="smallcap">3d</span> space.
+</p>
+<p>Before we start, there are some changes we need to make to last chapter's <tt>hello-gl</tt> program so that it's easier to play around with. These changes will allow us to write different vertex shaders and supply them as command-line arguments when we run the program, like so:</p>
+<pre>
+./hello-gl hello-gl.v.glsl
+</pre>
+<p>You can pull these changes from my <a href="http://github.com/jckarter/hello-gl-ch3"><tt>hello-gl-ch3</tt> github repo</a>.
+</p>
+<h3>Updating <tt>hello-gl</tt></h3>
+<p>We'll start by expanding our vertex array to hold three-dimensional vectors. We'll actually pad them out to four components&mdash;the fourth component's purpose will become clear soon. For now, we'll just set all the fourth components to one. Let's update our vertex array data in <tt>hello-gl.c</tt>:</p>
+<pre>
+static const GLfloat g_vertex_buffer_data[] = { 
+    <span class="highlight">-1.0f, -1.0f, 0.0f, 1.0f,
+     1.0f, -1.0f, 0.0f, 1.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 0.0f, 1.0f</span>
+};
+</pre>
+<p>and our <tt>glVertexAttribPointer</tt> call:</p>
+<pre>
+    glVertexAttribPointer(
+        g_resources.attributes.position,  /* attribute */
+        <span class="highlight">4</span>,                                /* size */
+        GL_FLOAT,                         /* type */
+        GL_FALSE,                         /* normalized? */
+        <span class="highlight">sizeof(GLfloat)*4</span>,                /* stride */
+        (void*)0                          /* array buffer offset */
+    );
+</pre>
+<p>When we start transforming our rectangle, it will no longer completely cover the window, so let's add a <tt>glClear</tt> to our <tt>render</tt> function so we don't get garbage in the background. We'll set it to dark grey so it's distinct from the black background of our images:
+<pre>
+static void render(void)
+{
+    <span class="highlight">glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);</span>
+    /* ... */
+}
+</pre>
+<p>Now let's generalize a few things. First, we'll change our uniform state to include GLUT's <tt>timer</tt> value directly rather than the <tt>fade_factor</tt> precalculated. This will let our new vertex shaders perform additional time-based effects.</p>
+<pre>
+static void update_<span class="highlight">timer</span>(void)
+{
+    int milliseconds = glutGet(GLUT_ELAPSED_TIME);
+    g_resources.<span class="highlight">timer</span> = <span class="highlight">(float)milliseconds * 0.001f</span>;
+    glutPostRedisplay();
+}
+</pre>
+<p>You'll also have to search-and-replace all of the other references to <tt>fade_factor</tt> with <tt>timer</tt>. Once that's done, we'll change our <tt>main</tt> and <tt>make_resources</tt> functions so they can take the vertex shader filename as an argument. This way, we can easily switch between the different vertex shaders we'll be writing:</p>
+<pre>
+static int make_resources(<span class="highlight">const char *vertex_shader_file</span>)
+{
+    /* ... */
+    g_resources.vertex_shader = make_shader(
+        GL_VERTEX_SHADER,
+        <span class="highlight">vertex_shader_file</span>
+    );
+    /* ... */
+}
+</pre>
+<pre>
+int main(int argc, char** argv)
+{
+    /* ... */
+    if (!make_resources(<span class="highlight">argc >= 2 ? argv[1] : "hello-gl.v.glsl"</span>)) {
+        fprintf(stderr, "Failed to load resources\n");
+        return 1;
+    }
+    /* ... */
+}
+</pre>
+<p>Now let's update our shaders to match our changes to the uniform state and vertex array. We can move the fade factor calculation into the vertex shader, which will pass it on to the fragment shader as a <tt>varying</tt> value. In <tt>hello-gl.v.glsl</tt>:</p>
+<pre>
+#version 110
+
+<span class="highlight">uniform float timer;</span>
+
+attribute <span class="highlight">vec4</span> position;
+
+varying vec2 texcoord;
+<span class="highlight">varying float fade_factor;</span>
+
+void main()
+{
+    gl_Position = <span class="highlight">position</span>;
+    texcoord = position<span class="highlight">.xy</span> * vec2(0.5) + vec2(0.5);
+    <span class="highlight">fade_factor = sin(timer) * 0.5 + 0.5;</span>
+}
+</pre>
+<p>A new feature of GLSL I use here is vector <b>swizzling</b>: not only can you address the components of a <tt>vec</tt> type as if they were struct fields by using <tt>.x</tt>, <tt>.y</tt>, <tt>.z</tt>, and <tt>.w</tt> for the first through fourth components, you can also string together the element letters to collect multiple components in any order into a longer or shorter vector type. <tt>position.xy</tt> picks out as a <tt>vec2</tt> the first two elements of our now four-component <tt>position</tt> vector. We can then feed that <tt>vec2</tt> into the calculation for our <tt>texcoord</tt>, which remains two components long.
+</p>
+<p>Finally, in <tt>hello-gl.f.glsl</tt>, we make <tt>fade_factor</tt> assume its new <tt>varying</tt> identity:</p>
+<pre>
+#version 110
+
+uniform sampler2D textures[2];
+
+<span class="highlight">varying</span> float fade_factor;
+varying vec2 texcoord;
+
+void main()
+{
+    gl_FragColor = mix(
+        texture2D(textures[0], texcoord),
+        texture2D(textures[1], texcoord),
+        fade_factor
+    );
+}
+</pre>
+<p><a name="gl3-math-part">With those changes out of the way, we can recompile the executable once and not have to mess with C any more for the rest of the chapter. We can write new vertex shader files and execute them using <tt>./hello-gl vertex-shader.v.glsl</tt> without recompiling anything. Now we're ready do some math!</a></p>
+<h3>Projection and world space</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-projection-space-01.png">
+<p>The destination space for the vertex shader, which I've been informally referring to as "screen space" in the last couple of chapters, is more precisely called <b>projection space</b>. The visible part of projection space is the unit-radius cube from (&ndash;1, &ndash;1, &ndash;1) to (1, 1, 1). Anything outside of this cube gets <b>clipped</b> and thrown out. The <i>x</i> and <i>y</i> axes map across the <b>viewport</b>, the part of the screen in which any rendered output will be displayed, with (&ndash;1, &ndash;1, <i>z</i>) corresponding to the lower left corner, (1, 1, <i>z</i>) to the upper right, and (0, 0, <i>z</i>) to the center. The rasterizer uses the <i>z</i> coordinate to assign a depth value to every fragment it generates; if the framebuffer has a depth buffer, these depth values can be compared against the depth values of previously rendered fragments, allowing parts of newly-rendered objects to be hidden behind objects that have already been rendered into the framebuffer. (<i>x</i>, <i>y</i>, &ndash;1) is the <b>near plane</b> and maps to the nearest depth value. At the other end, (<i>x</i>, <i>y</i>, 1) is the <b>far plane</b> and maps to the farthest depth value. Fragments with <i>z</i> coordinates outside of that range get clipped against these planes just like they do the edges of the screen.</p>
+<p>Projection space is computationally convenient for the GPU, but it's not very usable by itself for modeling vertices within a scene. Rather than input projection-space vertices directly to the pipeline, most programs use the vertex shader to <b>project</b> objects into it. The pre-projection coordinate system used by the program is called <b>world space</b>, and can be moved, scaled, and rotated relative to projection space in whatever way the program needs. Within world space, objects also need to move around, changing position, orientation, size, and shape. Both of these operations, mapping world space to projection space and positioning objects in world space, are accomplished by performing <b>transformations</b> with mathematical structures called <b>matrices</b>.</p>
+<h3>Linear transformations with matrices</h3>
+<p>
+<a href="http://en.wikipedia.org/wiki/Linear_transformation"><b>Linear transformations</b></a> are operations on an object that preserve the relative size and orientation of parts within the object while uniformly changing its overall size or orientation. They include <b>rotation</b>, <b>scaling</b>, and <b>shearing</b>. If you've ever used the "free transform" tool in Photoshop or GIMP, these are the sorts of transformations it performs. You can think of a linear transformation as taking the <i>x</i>, <i>y</i>, and <i>z</i> axes of your coordinate space and mapping them to a new set of arbitrary axes <i>x'</i>, <i>y'</i>, and <i>z'</i>:
+</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl3-linear-transformation-matrices-01.png"></center>
+<p>
+For clarity, the figure is two-dimensional, but the same idea applies to <span class="smallcap">3d</span>. To represent a linear transformation numerically, we can take the vector values of those new axes and arrange them into a 3&#xd7;3 <b>matrix</b>. We can then perform an operation called <a href="http://en.wikipedia.org/wiki/Matrix_multiplication"><b>matrix multiplication</b></a> to apply a linear transformation to a vector, or to combine two transformations into a single matrix that represents the combined transformation. In standard mathematical notation, matrices are represented so that the axes are represented as columns going left-to-right. In GLSL and in the OpenGL API, matrices are represented as an array of vectors, each vector representing a column in the matrix. In source code, this results in the values looking transposed from their mathematical notation. This is called <b>column-major order</b> (as opposed to row-major order, in which each vector element of the matrix array would be a row of the matrix). GLSL provides 2&#xd7;2, 3&#xd7;3, and 4&#xd7;4 matrix types named <tt>mat2</tt> through <tt>mat4</tt>. It also overloads its multiplication operator for use between <tt>mat<i>n</i></tt> values of the same type, and between <tt>mat<i>n</i></tt>s and <tt>vec<i>n</i></tt>s, to perform matrix-matrix and matrix-vector multiplication.
+</p>
+<p>A nice property of linear transformations is that they work well with the rasterizer's linear interpolation. If we transform all of the vertices of a triangle using the same linear transformation, every point on its surface will retain its relative position to the vertices, so textures and other varying values will transform with the vertices they fill out.
+<p>
+Note that all linear transformations occur relative to the <b>origin</b>, that is, the (0, 0, 0) point of the coordinate system, which remains constant through a linear transformation. Because of this, moving an object around in space, called <b>translation</b> in mathematical terms, is <i>not</i> a linear transformation, and cannot be represented with a 3&#xd7;3 matrix or composed into other 3&#xd7;3 linear transform matrices. We'll see how to integrate translation into transformation matrices shortly. For now, let's try some linear transformations:
+</p>
+<h3>Rotation</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-rotation-matrix-01.png">
+<p>
+We'll start by writing a shader that spins our rectangle around the <i>z</i> axis. Using the <tt>timer</tt> uniform value as a rotation angle, we'll construct a <a href="http://en.wikipedia.org/wiki/Rotation_matrix">rotation matrix</a>, using the <tt>sin</tt> and <tt>cos</tt> functions to rotate our matrix axes around the unit circle. The shader looks like this; it's in the repo as <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/rotation.v.glsl"><tt>rotation.v.glsl</tt></a>:
+</p>
+<pre>
+#version 110
+
+uniform float timer;
+
+attribute vec4 position;
+
+varying vec2 texcoord;
+varying float fade_factor;
+
+void main()
+{
+    mat3 rotation = mat3(
+        vec3( cos(timer),  sin(timer),  0.0),
+        vec3(-sin(timer),  cos(timer),  0.0),
+        vec3(        0.0,         0.0,  1.0)
+    );
+    gl_Position = vec4(rotation * position.xyz, 1.0);
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+}
+</pre>
+<p>(I'm going to be listing only the <tt>main</tt> function of the next few shaders; the <tt>uniform</tt>, <tt>attribute</tt>, and <tt>varying</tt> declarations will all remain the same from here.) With our changes to <tt>hello-gl</tt> we can run it like so:</p>
+<pre>
+./hello-gl rotation.v.glsl
+</pre>
+<p>And this is the result:</p>
+<center><img src="http://duriansoftware.com/joe/media/gl3-rotation-screenshot.png"></center>
+<p>
+<h3>Scaling to fit the aspect ratio</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-scaling-matrix-01.png">
+<p>
+You probably noticed that the rectangle appears to be horizontally distorted as it rotates. This is because our window is wider than it is tall, so the screen distance covered along a unit on the <i>x</i> axis of projection space is longer than the distance the same unit would cover along the <i>y</i> axis. The window is 400 pixels wide and 300 pixels high, giving it an <b>aspect ratio</b> of 4:3 (the width divided by the height). (This will change if we resize the window, but we won't worry about that for now.) We can compensate for this by applying a <a href="http://en.wikipedia.org/wiki/Scaling_(geometry)#Matrix_representation">scaling matrix</a> that scales the <i>x</i> axis by the reciprocal of the aspect ratio, as in <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/window-scaled-rotation.v.glsl"><tt>window-scaled-rotation.v.glsl</tt></a>:
+</p>
+<pre>
+    mat3 window_scale = mat3(
+        vec3(3.0/4.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+    mat3 rotation = mat3(
+        vec3( cos(timer),  sin(timer),  0.0),
+        vec3(-sin(timer),  cos(timer),  0.0),
+        vec3(        0.0,         0.0,  1.0)
+    );
+    gl_Position = vec4(window_scale * rotation * position.xyz, 1.0);
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+</pre>
+<p><img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-matrix-order-01.png">Note that the order in which we rotate and scale is important. Unlike scalar multiplication, matrix multiplication is <i>noncommutative</i>: Changing the order of the arguments gives different results. This should make intuitive sense: "rotate an object, then squish it horizontally" gives a different result from "squish an object horizontally, then rotate it". As matrix math, you write transformation sequences out right-to-left, backwards compared to English: <tt>scale * rotate * vector</tt> rotates the vector first, whereas <tt>rotate * scale * vector</tt> scales first.</p>
+<center><img src="http://duriansoftware.com/joe/media/gl3-window-scale-rotation-screenshot.png"></center>
+<p>Now that we've compensated for the distortion of our window's projection space, we've revealed a dirty secret. Our input rectangle is really a square, and it doesn't match the aspect ratio of our image, leaving it scrunched. We need to scale it again outward, this time <i>before</i> we rotate, as in <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/window-object-scaled-rotation.v.glsl"><tt>window-object-scaled-rotation.v.glsl</tt></a>:
+<pre>
+    mat3 window_scale = mat3(
+        vec3(3.0/4.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+    mat3 rotation = mat3(
+        vec3( cos(timer),  sin(timer),  0.0),
+        vec3(-sin(timer),  cos(timer),  0.0),
+        vec3(        0.0,         0.0,  1.0)
+    );
+    mat3 object_scale = mat3(
+        vec3(4.0/3.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+    gl_Position = vec4(window_scale * rotation * object_scale * position.xyz, 1.0);
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+</pre>
+<p>(Alternately, we could change our vertex array and apply a scaling transformation to our generated <tt>texcoord</tt>s. But I promised we wouldn't be changing the C anymore in this chapter.)</p> With this shader, our rectangle now rotates the way we would expect it to:</p>
+<center><img src="http://duriansoftware.com/joe/media/gl3-window-object-scale-rotation-screenshot.png"></center>
+
+<h3>Projection and model-view matrices</h3>
+<p>The <tt>window_scale</tt> matrix conceptually serves a different purpose from the <tt>rotation</tt> and <tt>object_scale</tt> matrices. While the latter two matrices set up our input vertices to be where we want them in world space, the <tt>window_scale</tt> serves to project world space into projection space in a way that gives an undistorted final render. Matrices used to orient objects in world space, like our <tt>rotation</tt> and <tt>object_scale</tt> matrices, are called <b>model-view matrices</b>, because they are used both to transform models and to position them relative to the viewport. The matrix we use to project, in this case <tt>window_scale</tt>, is called the <b>projection matrix</b>. Although both kinds of matrix behave the same, and the line drawn between them is mathematically arbitrary, the distinction is useful because a <span class="smallcap">3d</span> application will generally only need a few projection matrices that change rarely (usually only if the window size or screen resolution changes). On the other hand, there can be countless model-view matrices for all of the objects in a scene, which will update constantly as the objects animate.
+
+<h3>Orthographic and perspective projection</h3>
+<p>Projecting with a scaling matrix, as we're doing here, produces an <a href="http://en.wikipedia.org/wiki/Orthographic_projection">orthographic projection</a>, in which objects in <span class="smallcap">3d</span> space are rendered at a constant scale regardless of their distance from the viewport. Orthographic projections are useful for rendering two-dimensional display elements, such as the UI controls of a game or graphics tool, and in modeling applications where the artist needs to see the exact scales of different parts of a model, but they don't adequately present <span class="smallcap">3d</span> scenes in a way most viewers expect. To demonstrate this, let's break out of the <span class="smallcap">2d</span> plane and alter our shader to rotate the rectangle around the <i>x</i> axis, as in <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/orthographic-rotation.v.glsl"><tt>orthographic-rotation.v.glsl</tt></a>:</p>
+<pre>
+    const mat3 projection = mat3(
+        vec3(3.0/4.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+
+    mat3 rotation = mat3(
+        vec3(1.0,         0.0,         0.0),
+        vec3(0.0,  cos(timer),  sin(timer)),
+        vec3(0.0, -sin(timer),  cos(timer))
+    );
+    mat3 scale = mat3(
+        vec3(4.0/3.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+    gl_Position = vec4(projection * rotation * scale * position.xyz, 1.0);
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+</pre>
+<center><img src="http://duriansoftware.com/joe/media/gl3-orthographic-rotation-screenshot.png"></center>
+<p>With an orthographic projection, the rectangle doesn't very convincingly rotate in <span class="smallcap">3d</span> space&mdash;it just sort of accordions up and down. This is because the top and bottom edges of the rectangle remain the same apparent size as they move toward and away from the view. In the real world, objects appear smaller in our field of view proportional to how far from our eyes they are. This effect is called <b>perspective</b>, and transforming objects to take perspective into account is called <a href="http://en.wikipedia.org/wiki/3D_projection#Perspective_projection"><b>perspective projection</b>.</a> Perspective projection is accomplished by shrinking objects proportionally to their distance from the "eye". An easy way to do this is to divide each point's position by some function of its <i>z</i> coordinate. Let's arbitrarily decide that zero on the <i>z</i> axis remains unscaled, and that points elsewhere on the <i>z</i> axis scale by half their distance from zero. Correspondingly, let's also scale the <i>z</i> axis by half, so that the end of the rectangle coming toward us doesn't get clipped to the near plane as it gets magnified. We'll end up with the shader code in <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/naive-perspective-rotation.v.glsl"><tt>naive-perspective-rotation.v.glsl</tt></a>:
+<pre>
+    const mat3 projection = mat3(
+        vec3(3.0/4.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 0.5)
+    );
+
+    mat3 rotation = mat3(
+        vec3(1.0,         0.0,         0.0),
+        vec3(0.0,  cos(timer),  sin(timer)),
+        vec3(0.0, -sin(timer),  cos(timer))
+    );
+    mat3 scale = mat3(
+        vec3(4.0/3.0, 0.0, 0.0),
+        vec3(    0.0, 1.0, 0.0),
+        vec3(    0.0, 0.0, 1.0)
+    );
+
+    vec3 projected_position = projection * rotation * scale * position.xyz;
+    float perspective_factor = projected_position.z * 0.5 + 1.0;
+
+    gl_Position = vec4(projected_position/perspective_factor, 1.0);
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+</pre>
+<center><img src="http://duriansoftware.com/joe/media/gl3-naive-perspective-screenshot.png"></center>
+<p>Now the overall shape of the rectangle appears to rotate in perspective, but the texture mapping is all kinky. This is because perspective projection is a <i>nonlinear</i> transformation&mdash;different parts of the rectangle get scaled differently depending on how far away they are. This interferes with the linear interpolation the rasterizer applies to the texture coordinates across the surface of our triangles. To properly project texture coordinates as well as other varying values in perspective, we need a different approach that takes the rasterizer into account.</p>
+
+<h3>Homogeneous coordinates</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-homogeneous-coordinates-01.png">
+<p>Directly applying perspective to an object may not be a linear transformation, but the divisor that perspective applies is a linear function of the perspective distance. If we stored the divisor out-of-band as an extra component of our vectors, we could apply perspective as a matrix transformation, and the rasterizer could linearly interpolate texture coordinates correctly before the perspective divisor is applied. This is in fact what that mysterious 1.0 we've been sticking in the fourth component of our vectors is for. The projection space that <tt>gl_Position</tt> addresses uses <a href="http://en.wikipedia.org/wiki/Homogeneous_coordinates"><b>homogeneous coordinates</b></a>. That fourth component, labeled <i>w</i>, divides the <i>x</i>, <i>y</i>, and <i>z</i> components when the coordinate is projected. In other words, the homogeneous coordinate [<i>x</i>:<i>y</i>:<i>z</i>:<i>w</i>] projects to the linear coordinate (<i>x</i>/<i>w</i>, <i>y</i>/<i>w</i>, <i>z</i>/<i>w</i>). 
+</p>
+<p>
+With this trick, we can construct a <b>perspective matrix</b> that maps distances on the <i>z</i> axis to scales on the <i>w</i> axis. As I mentioned, the rasterizer also interpolates varying values in homogeneous space, before the coordinates are projected, so texture coordinates and other varying values will blend correctly over perspective-projected triangles using this matrix. The 3&#xd7;3 linear transformation matrices we've covered extend to 4&#xd7;4 easily&mdash;just extend the columns to four components and add a fourth column that leaves the <i>w</i> axis unchanged. Let's update our vertex shader to use a proper perspective matrix and <tt>mat4</tt>s to transform our rectangle, as in <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/perspective-rotation.v.glsl"><tt>perspective-rotation.v.glsl</tt></a>:
+</p>
+<pre>
+    const mat4 projection = mat4(
+        vec4(3.0/4.0, 0.0, 0.0, 0.0),
+        vec4(    0.0, 1.0, 0.0, 0.0),
+        vec4(    0.0, 0.0, 0.5, 0.5),
+        vec4(    0.0, 0.0, 0.0, 1.0)
+    );
+
+    mat4 rotation = mat4(
+        vec4(1.0,         0.0,         0.0, 0.0),
+        vec4(0.0,  cos(timer),  sin(timer), 0.0),
+        vec4(0.0, -sin(timer),  cos(timer), 0.0),
+        vec4(0.0,         0.0,         0.0, 1.0)
+    );
+    mat4 scale = mat4(
+        vec4(4.0/3.0, 0.0, 0.0, 0.0),
+        vec4(    0.0, 1.0, 0.0, 0.0),
+        vec4(    0.0, 0.0, 1.0, 0.0),
+        vec4(    0.0, 0.0, 0.0, 1.0)
+    );
+
+    gl_Position = projection * rotation * scale * position;
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+</pre>
+<center><img src="http://duriansoftware.com/joe/media/gl3-perspective-screenshot.png"></center>
+<p>The texture coordinates now project correctly with the rectangle as it rotates in perspective.</p>
+
+<h3>Affine transformations</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl3-translation-matrix-01.png">
+<p>
+Homogeneous coordinates let us pull another trick using 4&#xd7;4 matrices. Earlier, I noted that translation cannot be represented in a 3&#xd7;3 linear transformation matrix. While translation can be achieved by simple vector addition, combinations of translations and linear transformations can't be easily composed that way. However, by using the <i>w</i> axis column of a 4&#xd7;4 matrix to map the <i>w</i> axis value back onto the <i>x</i>, <i>y</i>, and <i>z</i> axes, we can set up a <b>translation matrix</b>. The combination of a linear transformation with a translation is referred to as an <b>affine transformation</b>. Like our 3&#xd7;3 linear transformation matrices, 4&#xd7;4 affine transformation matrices can be multiplied together to give new matrices combining their transformations.
+</p>
+
+<h3>Constructing a view frustum matrix</h3>
+<p>The perspective projection matrix we constructed above gets the job done, but it's a bit ad-hoc. An easier to understand way of projecting world space would be to consider the origin to be the camera position and project from there. Now that we know how to make translation matrices, we can leave the model-view matrix to position the camera in world space. Different programs will also want to control the <a href="http://en.wikipedia.org/wiki/Angle_of_view"><b>angle of view</b></a> (<i>&alpha;</i>) of the projection, and the distance of the near (<i>z<sub>n</sub></i>) and far (<i>z<sub>f</sub></i>) planes in world space. A narrower angle of view will project a far-away object to a scale more similar to close objects, giving a zoomed-in effect, while a wider angle makes objects shrink more relative to their distance, giving a wider field of view. The ratio between the near and far planes affects the resolution of the depth buffer. If the planes are too far apart, or the near plane too close to zero, you'll get <b>z-fighting</b>, where the <i>z</i> coordinates of projected triangles differ by less than the depth buffer can represent, and depth testing gives invalid results, causing nearby objects to "fight" for pixels along their shared edge.</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl3-view-frustum-01.png"></center>
+<p>From these variables, we can come up with a general function to construct a projection matrix for any <b><a href="http://en.wikipedia.org/wiki/View_frustum">view frustum</a></b>. The math is a little hairy; I'll describe what it does in broad strokes. With the camera at the origin, we can project the <i>z</i> axis directly to <i>w</i> axis values.  In an affine transformation matrix, the bottom row is always set to [0 0 0 1]. This leaves the <i>w</i> axis unchanged. Changing this bottom row will cause the <i>x</i>, <i>y</i>, or <i>z</i> axis values to project onto the <i>w</i> axis, giving a perspective effect along the specified axis. In our case, setting that last row to [0 0 1 0] projects the <i>z</i> axis value directly to the perspective scale on <i>w</i>.</p>
+<p>We'll then need to remap the range on the <i>z</i> axis from <i>z<sub>n</sub></i> to <i>z<sub>f</sub></i> so that it projects into the space between the near (&ndash;1) and far (1) planes of projection space. Taking the effect of the <i>w</i> coordinate into account, we'll have to map into the range from &ndash;<i>z<sub>n</sub></i> (which with a <i>w</i> coordinate of <i>z<sub>n</sub></i> will project to &ndash;1) to <i>z<sub>f</sub></i> (which with a <i>w</i> coordinate that's also <i>z<sub>f</sub></i> will project to 1). We do this by translating and scaling the <i>z</i> axis to fit this new range. The angle of view is determined by how much we scale the <i>x</i> and <i>y</i> axes. A scale of one gives a 45&deg; angle of view; shrinking the axes gives a wider field of view, and growing them gives a narrower field, inversely proportional to the tangent of the angle of view. So that our output isn't distorted, we also scale the <i>y</i> axis proportionally to the aspect ratio (<i>r</i>) of the viewport.
+</p>
+<p>
+Let's write one last shader using the view frustum matrix function. We'll translate the rectangle to set it 3 units in front of us. In addition to rotating around the <i>x</i> axis, we'll also change the translation over time to set it moving in a circle left to right and toward and away from us. Here's the code, from <a href="http://github.com/jckarter/hello-gl-ch3/blob/master/view-frustum-rotation.v.glsl"><tt>view-frustum-rotation.v.glsl</tt></a>:</p>
+<pre>
+#version 110
+
+uniform float timer;
+
+attribute vec4 position;
+
+varying vec2 texcoord;
+varying float fade_factor;
+
+mat4 view_frustum(
+    float angle_of_view,
+    float aspect_ratio,
+    float z_near,
+    float z_far
+) {
+    return mat4(
+        vec4(1.0/tan(angle_of_view),           0.0, 0.0, 0.0),
+        vec4(0.0, aspect_ratio/tan(angle_of_view),  0.0, 0.0),
+        vec4(0.0, 0.0,    (z_far+z_near)/(z_far-z_near), 1.0),
+        vec4(0.0, 0.0, -2.0*z_far*z_near/(z_far-z_near), 0.0)
+    );
+}
+
+mat4 scale(float x, float y, float z)
+{
+    return mat4(
+        vec4(x,   0.0, 0.0, 0.0),
+        vec4(0.0, y,   0.0, 0.0),
+        vec4(0.0, 0.0, z,   0.0),
+        vec4(0.0, 0.0, 0.0, 1.0)
+    );
+}
+
+mat4 translate(float x, float y, float z)
+{
+    return mat4(
+        vec4(1.0, 0.0, 0.0, 0.0),
+        vec4(0.0, 1.0, 0.0, 0.0),
+        vec4(0.0, 0.0, 1.0, 0.0),
+        vec4(x,   y,   z,   1.0)
+    );
+}
+
+mat4 rotate_x(float theta)
+{
+    return mat4(
+        vec4(1.0,         0.0,         0.0, 0.0),
+        vec4(0.0,  cos(timer),  sin(timer), 0.0),
+        vec4(0.0, -sin(timer),  cos(timer), 0.0),
+        vec4(0.0,         0.0,         0.0, 1.0)
+    );
+}
+
+void main()
+{
+    gl_Position = view_frustum(radians(45.0), 4.0/3.0, 0.5, 5.0)
+        * translate(cos(timer), 0.0, 3.0+sin(timer))
+        * rotate_x(timer)
+        * scale(4.0/3.0, 1.0, 1.0)
+        * position;
+    texcoord = position.xy * vec2(0.5) + vec2(0.5);
+    fade_factor = sin(timer) * 0.5 + 0.5;
+}
+</pre>
+<p>And this is what we get:</p>
+<center><img src="http://duriansoftware.com/joe/media/gl3-view-frustum-projection-screenshot.png"></center>
+<h3>Conclusion</h3>
+<p>
+Matrix multiplication is by far the most common operation in a <span class="smallcap">3d</span> rendering pipeline. The rotation, scaling, translation, and frustum matrices we've covered are the basic structures that make <span class="smallcap">3d</span> graphics happen. With these fundamentals covered, we're now ready to start building <span class="smallcap">3d</span> scenes. If you want to learn more about <span class="smallcap">3d</span> math, the book <a href="http://www.amazon.com/Primer-Graphics-Development-Wordware-Library/dp/1556229119"><i><span class="smallcap">3d</span> Math Primer for Graphics and Game Development</i></a> gives excellent in-depth coverage beyond the basics I've touched on here.
+</p>
+<p>In this chapter, I've been demonstrating matrix math by writing code completely within the vertex shader. Constructing our matrices in the vertex shader will cause the matrices to be redundantly calculated for every single vertex. For this simple four-vertex program, it's not a big deal; I stuck to GLSL because it has great support for matrix math built into the language, and demonstrating both the concepts of matrix math and a hoary C math library would make things even more confusing. Unfortunately, OpenGL provides no matrix or vector math through the C API, so we'd need to use a third-party library, such as <a href="http://simdx86.sourceforge.net/">libSIMDx86</a>, to perform this math outside of shaders. In a real program with potentially thousands of vertices, the extra matrix math overhead in the vertex shader will add up. Projection matrices generally apply to an entire scene and only need to be recalculated when the window is resized or the screen resolution changed, and model-view matrices usually change only between frames and apply to sets of vertices, so it is more efficient to precalculate these matrices and feed them to the shader as <tt>uniform</tt>s or <tt>attribute</tt>s. This is how we'll do things from now on.</p>
+<p>In the next chapter, we'll leave this lame "hello world" program behind and write a program that renders a more sophisticated <span class="smallcap">3d</span> scene. In the process, we'll look at the next most important aspect of <span class="smallcap">3d</span> rendering after transformation and projection: lighting.
+</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">&laquo; Chapter 2.3</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html">Chapter 4 &raquo;</a></h4>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

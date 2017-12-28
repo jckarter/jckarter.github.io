@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<title>Cat Psychiatrist</title>
+<link rel=stylesheet href=cats.css>
+<script src=sha256.js></script>
+<script src=generator.js></script>
+<script src=dictionary.js></script>
+<script src=main.js></script>
+<div id=report>
+ <h1 id=reportheader>
+  <img id=reportpic src="" alt="[Picture]">
+  <span id=reportname></span>
+ </h1>
+ <h4>Evaluation</h4>
+ <p id=evaluation>
+ <h4>Recommendation</h4>
+ <p id=recommendation>
+ <hr>
+ <p>Evaluated <span id=reportdate></span> by Dr. Nigel Collins, D.V.Psy.
+ <img id=reportsig src=signature.png alt="[Signed by Dr. Collins]">
+ <input type=button id=reportdismiss value=Dismiss>
+</div>
+<div id=questionnaire>
+<p>Have you ever wondered what your cat is thinking? I, Dr. Nigel
+Collins, D.V.Psy., will use my proprietary algorithms to
+tell you! To get started, just fill out the following questionnaire.
+Please try to be as accurate and
+complete as you can. We are bound by patient-doctor confidentiality and will not
+disclose your information to third parties.
+<p>Patient name: <input type=text id=catname>
+ <span class=errormessage>Please enter a name.</span>
+<p>Gender:
+ <select id=catgender>
+  <option value="" selected></option>
+  <option value="m">Male</option>
+  <option value="f">Female</option>
+  <option value="x">Other</option>
+ </select>
+ <span class=errormessage>Please select a gender.</span>
+<p>Breed: <input type=text id=catbreed>
+ <span class=errormessage>Please enter a breed.</span>
+<p>Age in months: <input type=text id=catage>
+ <span class=errormessage>Please enter an age.</span>
+<p>Please attach a recent picture of the patient below. This is optional, but will lead
+to more accurate readings.
+<p><form id=pictureform>
+ <div id=picturechoose>
+  <p>Drag in or choose a picture
+  <p><input type=file id=pictureupload>
+ </div>
+ <div id=picturecontent>
+  <input type=reset id=pictureclear value="&#xd7;">
+  <img id=picturedisplay src="" alt="[Picture]">
+ </div>
+</form>
+<p><input type=button id=submit value=Submit>
+ <span class=errormessage>Some important values are missing.</span>
+</div>

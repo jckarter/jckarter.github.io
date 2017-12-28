@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 2.2: Shaders</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">An intro to modern OpenGL. Chapter 2.2: Shaders</a></h3>
+<h4>updated April 5, 2010 17:29:36 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">&laquo; Chapter 2.1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">Chapter 2.3 &raquo;</a></h4>
+<p>
+<a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">Buffers and textures</a> contain the raw materials for an OpenGL program, but without shaders, they are inert lumps of bytes. If you recall from our overview of the <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html#gl1-pipeline">graphics pipeline</a>, rendering requires a vertex shader, which maps our vertices into screen space, and a fragment shader, which colors in the rasterized fragments of the resulting triangles. Shaders in OpenGL are written in a language called GLSL (GL Shading Language), which looks a lot like C. In this article, we'll lay out the shader code for our <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">"hello world" program</a> and then write the C code to load, compile, and link it into OpenGL.
+</p>
+<h3>The vertex shader</h3>
+<p>Here is the GLSL source code for our vertex shader, from <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl.v.glsl"><tt>hello-gl.v.glsl</tt></a>:</p>
+<pre>
+#version 110
+
+attribute vec2 position;
+
+varying vec2 texcoord;
+
+void main()
+{
+    gl_Position = vec4(position, 0.0, 1.0);
+    texcoord = position * vec2(0.5) + vec2(0.5);
+}
+</pre>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-vertex-shader-01.png">
+<p>I'll summarize what the shader does, then give a little more detail about the GLSL language. The shader first assigns the vertex's screen space position to <tt>gl_Position</tt>, a predefined variable that GLSL provides for the purpose. In screen space, the coordinates (&ndash;1, &ndash;1) and (1, 1) correspond respectively to the lower-left and upper-right corners of the framebuffer; since our vertex array's vertices already trace that same rectangle, we can directly copy the <i>x</i> and <i>y</i> components from each vertex's <tt>position</tt> value as it comes out of the vertex array. <tt>gl_Position</tt>'s other two vector components are used in depth testing and perspective projection; we'll look at them closer next chapter when we get into <span class="smallcap">3d</span> math. For now, we just fill them with their identity values zero and one. The shader then does some math to map our screen-space <tt>position</tt>s from screen space (&ndash;1 to 1) to texture space (0 to 1) and assigns the result to the vertex's <tt>texcoord</tt>.
+</p>
+<p>Much like C, a GLSL shader starts executing from the <tt>main</tt> function, which in GLSL's case takes no arguments and returns <tt>void</tt>. GLSL borrows the C preprocessor syntax for its own directives. The <tt>#version</tt> directive indicates the GLSL version of the following source code; our <tt>#version</tt> declares that we're using GLSL 1.10. (GLSL versions are pretty tightly tied to OpenGL versions; 1.10 is the version that corresponds to OpenGL 2.0.) GLSL does away with pointers and most of C's sized numeric types, keeping only the <tt>bool</tt>, <tt>int</tt>, and <tt>float</tt> types in common, but it adds a suite of vector and matrix types up to four components in length. The <tt>vec2</tt> and <tt>vec4</tt> types you see here are two- and four-component vectors of <tt>float</tt>s, respectively. A type name can also be used as a constructor function for that type; you can construct a vector from either a single scalar value, which will be repeated into all the components of the vector, or from a combination of vectors and scalars, whose components will be strung together to form a larger vector. GLSL's math operators and many of its builtin functions are defined on these vector types to do component-wise math. In addition to numeric types, GLSL also supplies special <tt>sampler</tt> data types for sampling textures, which we'll see in the fragment shader below. These basic types can be aggregated into array and user-defined <tt>struct</tt> types.
+</p>
+<p>
+A vertex shader communicates with the surrounding graphics pipeline using specially-declared global variables in the GLSL program. Its inputs come from <tt>uniform</tt> variables, which supply values from the uniform state, and <tt>attribute</tt> variables, which supply per-vertex attributes from the vertex array. The shader assigns its per-vertex outputs to <tt>varying</tt> variables. GLSL predefines some varying variables to receive special outputs used by the graphics pipeline, including the <tt>gl_Position</tt> variable we used here.
+</p>
+
+<h3>The fragment shader</h3>
+<p>Now let's look at the fragment shader source, from <a href="http://github.com/jckarter/hello-gl/blob/master/hello-gl.f.glsl"><tt>hello-gl.f.glsl</tt></a>:</p>
+<pre>
+<a name="gl2-fragment-shader">#version 110
+
+uniform float fade_factor;
+uniform sampler2D textures[2];
+
+varying vec2 texcoord;
+
+void main()
+{
+    gl_FragColor = mix(
+        texture2D(textures[0], texcoord),
+        texture2D(textures[1], texcoord),
+        fade_factor
+    );
+}</a>
+</pre>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl2-fragment-shader-01.png">
+<p>In a fragment shader, some things change slightly. <tt>varying</tt> variables become inputs here: Each varying variable in the fragment shader is linked to the vertex shader's varying variable of the same name, and each invocation of the fragment shader receives a rasterized version of the vertex shader's outputs for that varying variable. Fragment shaders are also given a different set of predefined <tt>gl_*</tt> variables. <tt>gl_FragColor</tt> is the most important, a <tt>vec4</tt> to which the shader assigns the RGBA color value for the fragment. The fragment shader has access to the same set of <tt>uniform</tt>s as the vertex shader, but cannot declare or access <tt>attribute</tt> variables.</p>
+<p>Our fragment shader uses GLSL's builtin <tt>texture2D</tt> function to sample the two <tt>textures</tt> from uniform state at <tt>texcoord</tt>. It then calls the builtin <tt>mix</tt> function to combine the two texture values based on the current value of the uniform <tt>fade_factor</tt>: zero gives only the sample from the first texture, one gives only the second texture's sample, and values in between give us a blend of the two.</p>
+<p>Now that we've looked over the GLSL shader code, let's jump back into C and load the shaders into OpenGL.</p>
+<h3>Storing our shader objects</h3>
+<pre>
+static struct {
+    /* ... fields for <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-g-resources-buffers-textures">buffer and texture</a> objects */
+    GLuint vertex_shader, fragment_shader, program;
+    
+    struct {
+        GLint fade_factor;
+        GLint textures[2];
+    } uniforms;
+
+    struct {
+        GLint position;
+    } attributes;
+
+    GLfloat fade_factor;
+} g_resources;
+</pre>
+<p>First, let's add some fields to our <tt>g_resources</tt> structure to hold the names of our shader objects and program object after we construct them. Like buffers and textures, shader and program objects are named by <tt>GLuint</tt> handles. We also add some fields to hold the integer <b>locations</b> that we'll need to reference our shaders' uniform and attribute variables. Finally, we add a field to hold the floating-point value we'll assign to the <tt>fade_factor</tt> uniform every frame.</p>
+<h3>Compiling shader objects</h3>
+<pre>
+static GLuint make_shader(GLenum type, const char *filename)
+{
+    GLint length;
+    GLchar *source = file_contents(filename, &length);
+    GLuint shader;
+    GLint shader_ok;
+
+    if (!source)
+        return 0;
+</pre>
+<p>OpenGL compiles shader objects from their GLSL source code and keeps the generated GPU machine code to itself. There is no standard way to precompile a GLSL program into a binary&mdash;you build the shader from source every time. Here we read our shader source out of a separate file, which lets us change the shader source without recompiling our C.</p>
+<pre>
+    shader = glCreateShader(type);
+    glShaderSource(shader, 1, (const GLchar**)&source, &length);
+    free(source);
+    glCompileShader(shader);
+</pre>
+<p>Shader and program objects deviate from the <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-object-model"><tt>glGen</tt>-and-<tt>glBind</tt> protocol</a> that buffer and texture objects follow. Unlike buffer and texture functions, functions that operate on shaders and programs take the object's integer name directly as an argument. The objects don't need to be bound to any target to be modified. Here, we create a shader object by calling <tt>glCreateShader</tt> with the shader type (either <tt>GL_VERTEX_SHADER</tt> or <tt>GL_FRAGMENT_SHADER</tt>). We then supply an array of one or more pointers to strings of source code to <tt>glShaderSource</tt>, and tell OpenGL to compile the shader with <tt>glCompileShader</tt>. This step is analogous to the compilation stage of a C build process; a compiled shader object is akin to a <tt>.o</tt> or <tt>.obj</tt> file. Just as in a C project, any number of vertex and fragment shader objects can be linked together into a working program, with each shader object referencing functions defined in the others of the same type, as long as the referenced functions all resolve and a <tt>main</tt> entry point is provided for both the vertex and fragment shaders.</p>
+
+<pre>
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &shader_ok);
+    if (!shader_ok) {
+        fprintf(stderr, "Failed to compile %s:\n", filename);
+        show_info_log(shader, glGetShaderiv, glGetShaderInfoLog);
+        glDeleteShader(shader);
+        return 0;
+    }
+    return shader;
+}
+</pre>
+<p>
+Also just like a C program, a block of shader source code can fail to compile due to syntax errors, references to nonexistent functions, or type mismatches. OpenGL maintains an <b>info log</b> for every shader object that contains errors or warnings raised by the GLSL compiler. After compiling the shader, we need to check its <tt>GL_COMPILE_STATUS</tt> with <tt>glGetShaderiv</tt>. If the compile fails, we display the info log using our <tt>show_info_log</tt> function and give up. Here's how <tt>show_info_log</tt> looks:
+</p>
+<pre>
+static void show_info_log(
+    GLuint object,
+    PFNGLGETSHADERIVPROC glGet__iv,
+    PFNGLGETSHADERINFOLOGPROC glGet__InfoLog
+)
+{
+    GLint log_length;
+    char *log;
+
+    glGet__iv(object, GL_INFO_LOG_LENGTH, &log_length);
+    log = malloc(log_length);
+    glGet__InfoLog(object, log_length, NULL, log);
+    fprintf(stderr, "%s", log);
+    free(log);
+}
+</pre>
+<p>We pass in the <tt>glGetShaderiv</tt> and <tt>glGetShaderInfoLog</tt> functions as arguments to <tt>show_info_log</tt> so we can reuse the function for program objects further on. (Those <tt>PFNGL*</tt> function pointer type names are provided by GLEW.) We use <tt>glGetShaderiv</tt> with the <tt>GL_INFO_LOG_LENGTH</tt> parameter to get the length of the info log, allocate a buffer to hold it, and download the contents using <tt>glGetShaderInfoLog</tt>.</p>
+
+<h3>Linking program objects</h3>
+<pre>
+static GLuint make_program(GLuint vertex_shader, GLuint fragment_shader)
+{
+    GLint program_ok;
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertex_shader);
+    glAttachShader(program, fragment_shader);
+    glLinkProgram(program);
+</pre>
+<p>
+If shader objects are the object files of the GLSL build process, then program objects are the finished executables. We create a program object using <tt>glCreateProgram</tt>, attach shader objects to be linked into it with <tt>glAttachShader</tt>, and set off the link process with <tt>glLinkProgram</tt>.
+</p>
+
+<pre>
+    glGetProgramiv(program, GL_LINK_STATUS, &program_ok);
+    if (!program_ok) {
+        fprintf(stderr, "Failed to link shader program:\n");
+        show_info_log(program, glGetProgramiv, glGetProgramInfoLog);
+        glDeleteProgram(program);
+        return 0;
+    }
+    return program;
+}
+</pre>
+<p>Of course, linking can also fail, due to functions being referenced but not defined, missing <tt>main</tt>s, fragment shaders using <tt>varying</tt> inputs not supplied by the vertex shader, and other reasons analogous to the reasons C programs fail to link. We check the program's <tt>GL_LINK_STATUS</tt> and dump its info log using <tt>show_info_log</tt>, this time using the program-specific <tt>glGetProgramiv</tt> and <tt>glGetProgramInfoLog</tt> functions.</p>
+<p>Now we can fill in the last part of <tt>make_resources</tt> that compiles and links our shader program:</p>
+<pre>
+static int make_resources(void)
+{
+    /* make <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-make-resources-buffers">buffers</a> and <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-make-resources-textures">textures</a> ... */
+    g_resources.vertex_shader = make_shader(
+        GL_VERTEX_SHADER,
+        "hello-gl.v.glsl"
+    );
+    if (g_resources.vertex_shader == 0)
+        return 0;
+
+    g_resources.fragment_shader = make_shader(
+        GL_FRAGMENT_SHADER,
+        "hello-gl.f.glsl"
+    );
+    if (g_resources.fragment_shader == 0)
+        return 0;
+
+    g_resources.program = make_program(
+        g_resources.vertex_shader,
+        g_resources.fragment_shader
+    );
+    if (g_resources.program == 0)
+        return 0;
+</pre>
+<h3>Looking up shader variable locations</h3>
+<pre>
+    g_resources.uniforms.fade_factor
+        = glGetUniformLocation(g_resources.program, "fade_factor");
+    g_resources.uniforms.textures[0]
+        = glGetUniformLocation(g_resources.program, "textures[0]");
+    g_resources.uniforms.textures[1]
+        = glGetUniformLocation(g_resources.program, "textures[1]");
+
+    g_resources.attributes.position
+        = glGetAttribLocation(g_resources.program, "position");
+
+    return 1;
+}
+</pre>
+<p>The GLSL linker assigns a <tt>GLint</tt> <b>location</b> to every <tt>uniform</tt> value and vertex shader <tt>attribute</tt>. Structs and arrays of uniforms or attributes get further broken down, with each field getting its own location assigned. When we render using the program, we'll need to use these integer locations when we assign values to the uniform variables and when we map parts of the vertex array to attributes. Here, we use the functions <tt>glGetUniformLocation</tt> and <tt>glGetAttribLocation</tt> to look up these locations, giving them the variable, struct field, or array element name as a string. We then record those locations in our program's <tt>g_resources</tt> struct. With the program linked and the uniform and attribute locations on record, we are now ready to render using the program.</p>
+
+<h3>Next time, we render</h3>
+<p>I know I've left you hanging these last couple parts without a complete, working program to run. I'll fix that in the next and final part of this chapter, when we write the code that will actually set the graphics pipeline in motion and render our scene.</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">&laquo; Chapter 2.1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">Chapter 2.3 &raquo;</a></h4>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

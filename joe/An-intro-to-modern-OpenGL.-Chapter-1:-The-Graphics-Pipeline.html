@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 1: The Graphics Pipeline</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html">An intro to modern OpenGL. Chapter 1: The Graphics Pipeline</a></h3>
+<h4>updated April 5, 2010 17:12:05 PDT</h4>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">Chapter 2 &raquo;</a></h4>
+<p>
+<a href="http://www.opengl.org/">OpenGL</a> has been around a long time, and from reading all the accumulated layers of documentation out there on the Internet, it's not always clear what parts are historic and what parts are still useful and supported on modern graphics hardware. It's about time for a new OpenGL introduction that walks through the parts that are still relevant today.
+</p>
+<p><b>Update:</b> Join the <a href="http://www.reddit.com/r/programming/comments/bhyon/an_intro_to_modern_opengl_chapter_1_the_graphics/">Reddit discussion</a>.
+<h3>What is OpenGL?</h3>
+<p>
+<a href="http://en.wikipedia.org/wiki/OpenGL">Wikipedia</a> gives a good overview of the purpose and history of OpenGL, but I'll give a quick summary here. In its modern form, OpenGL is a cross-platform library for interfacing with programmable GPUs for the purpose of rendering real-time <span class="smallcap">3d</span> graphics. Its use is common in games, CAD, and data visualization applications. It started in the early '90s as a cross-platform standardization of <a href="http://en.wikipedia.org/wiki/Silicon_Graphics">SGI</a>'s proprietary GL ("Graphics Library") that drove the graphics hardware in their high-end workstations. A few years later, <a href="http://en.wikipedia.org/wiki/Quake_(video_game)#GLQuake_and_WinQuake">GLQuake</a> and <a href="http://en.wikipedia.org/wiki/3dfx">3dfx</a>'s Voodoo graphics accelerators pushed <span class="smallcap">3d</span> accelerators into the mainstream, and OpenGL became a standard alongside Microsoft's proprietary <a href="http://en.wikipedia.org/wiki/Microsoft_Direct3D">Direct<span class="smallcap">3d</span></a> library for controlling graphics accelerators in consumer PCs. In recent years, the <a href="http://www.khronos.org/">Khronos group</a> has taken stewardship of the OpenGL standard, updating it to support the features of modern programmable GPUs, pushing it into the mobile and online domains with <a href="http://www.khronos.org/opengles/">OpenGL ES</a> and <a href="http://www.khronos.org/webgl/">WebGL</a>, and streamlining it in OpenGL 3 by deprecating the outdated features that cluttered earlier versions of the library.
+</p>
+<p>
+Another recent development has been the adoption of general purpose GPU (GPGPU) libraries, including nVidia's <a href="http://www.nvidia.com/object/cuda_home_new.html">CUDA</a> and Khronos' <a href="http://www.khronos.org/opencl/">OpenCL</a>. These libraries implement dialects of C with added data parallelism features, allowing the GPU to be used for general computation without having to work within the graphics-oriented framework of OpenGL. However, these GPGPU frameworks don't replace OpenGL; since their primary purpose is not graphics programming, they only provide access to a GPU's computation units, ignoring its graphics-specific hardware. They can, however, act as accessories to OpenGL. CUDA and OpenCL both can share buffers of GPU memory with OpenGL and pass data between GPGPU programs and the graphics pipeline. GPGPU will be outside the scope of these articles; I'll be focusing on using OpenGL for graphics tasks.
+</p>
+<p>
+For these tutorials, I'm going to assume you're already a programmer and that you know C, but that you haven't necessarily seen OpenGL or done graphics programming before. Knowing at least some basic algebra and geometry will help a lot. I'm going to cover OpenGL 2.0, and avoid discussing any API features that are deprecated or removed in OpenGL 3 or OpenGL ES. If I write enough chapters, I might talk about some of the new features of OpenGL 3 and 4 after I go through the basics. In addition to OpenGL, I'll be using two helper libraries: <a href="http://www.opengl.org/resources/libraries/glut/">GLUT</a> (the GL Utility Toolkit), which provides a cross-platform interface between the window system and OpenGL, and <a href="http://glew.sourceforge.net/">GLEW</a> (the GL Extensions Wrangler), which streamlines dealing with different versions of OpenGL and their extensions.
+</p>
+<h3>Where do I get OpenGL, GLUT, and GLEW?</h3>
+<p>
+OpenGL comes standard in some form or another on MacOS X, Windows, and most Linux distributions. If you want to follow these tutorials, you'll need to ensure your OpenGL implementation supports at least version 2.0. MacOS X's OpenGL implementation always supports OpenGL 2.0, at least in software if the graphics card driver doesn't provide it. On Windows, you're dependent on your graphics card drivers to provide OpenGL 2 or later. You can use RealTech's free <a href="http://www.realtech-vr.com/glview/download.html">OpenGL Extensions Viewer</a> to see what OpenGL version your driver supports. nVidia and AMD's OpenGL drivers support at least OpenGL 2.0 on all of their video cards released in the past four years. Users of Intel onboard graphics and older graphics cards are less fortunate. For a fallback, <a href="http://www.mesa3d.org/">Mesa</a> provides an open-source, cross-platform software OpenGL 2.1 implementation that works on Windows and almost all Unix platforms.
+</p>
+<p>Mesa is also the most common OpenGL implementation on Linux, where it also works with the X server to interface OpenGL with graphics hardware using "direct rendering interface" (DRI) drivers. You can see whether your particular DRI driver supports OpenGL 2.0 by running the <tt>glxinfo</tt> command from an xterm. If OpenGL 2.0 isn't supported on your hardware, you can disable the driver to fall back to Mesa's software implementation. nVidia also provides their own proprietary OpenGL implementation for Linux targeting their own GPUs; this implementation should provide OpenGL 2.0 or later on any recent nVidia card.
+</p>
+<p>
+To install <a href="http://www.opengl.org/resources/libraries/glut/">GLUT</a> and <a href="http://glew.sourceforge.net/">GLEW</a>, look for the binary packages on their respective sites. MacOS X comes with GLUT preinstalled. Most Linux distributions have GLUT and GLEW available through their package system, though for GLUT, you may need to enable your distribution's optional "non-free" package repositories, since its license is not technically open source. There is an open-source GLUT clone called <a href="http://openglut.sourceforge.net/">OpenGLUT</a> if you're a stickler for such things.
+</p>
+<p>
+If you're a seasoned C programmer, you should be able to install these libraries and get them working in your development environment without any trouble. But before we get our hands dirty with any code, I'm going to go over some big-picture concepts. In this first chapter, I'm going to explain the graphics pipeline and the dataflow of a rendering job. In the next chapter, we'll write a simple "hello world" program that draws the contents of an image file to the screen, showing how the pipeline is put into practice.
+</p>
+
+<h3><a name="gl1-pipeline">The graphics pipeline</a></h3>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/gl1-pipeline-01.png"></center>
+<p>
+Ever since the early days of real-time <span class="smallcap">3d</span>, the triangle has been the paintbrush with which scenes have been drawn. Although modern GPUs can perform all sorts of flashy effects to cover up this dirty secret, underneath all the shading, triangles are still the medium in which they work. The graphics pipeline that OpenGL implements reflects this: the host program fills OpenGL-managed memory buffers with arrays of vertices; these vertices are projected into screen space, assembled into triangles, and rasterized into pixel-sized fragments; finally, the fragments are assigned color values and drawn to the framebuffer. Modern GPUs get their flexibility by delegating the "project into screen space" and "assign color values" stages to uploadable programs called <b>shaders</b>. Let's look at each stage in more detail:
+</p>
+
+<h3>The vertex and element arrays</h3>
+<p>
+A rendering job starts its journey through the pipeline in a set of one or more <b>vertex buffers</b>, which are filled with arrays of <b>vertex attributes</b>. These attributes are used as inputs to the vertex shader. Common vertex attributes include the location of the vertex in <span class="smallcap">3d</span> space, and one or more sets of texture coordinates that map the vertex to a sample point on one or more textures. The set of vertex buffers supplying data to a rendering job are collectively called the <b>vertex array</b>. When a render job is submitted, we supply an additional <b>element array</b>, an array of indexes into the vertex array that select which vertices get fed into the pipeline. The order of the indexes also controls how the vertices get assembled into triangles later on.
+</p>
+
+<h3>Uniform state and textures</h3>
+<p>
+A rendering job also has <b>uniform</b> state, which provides a set of shared, read-only values to the shaders at each programmable stage of the pipeline. This allows the shader program to take parameters that don't change between vertices or fragments. The uniform state includes <b>textures</b>, which are one-, two-, or three-dimensional arrays that can be sampled by shaders. As their name implies, textures are commonly used to map texture images onto surfaces. They can also be used as lookup tables for precalculated functions or as datasets for various kinds of effects.
+</p>
+
+<h3>The vertex shader</h3>
+<p>
+The GPU begins by reading each selected vertex out of the vertex array and running it through the <b>vertex shader</b>, a program that takes a set of vertex attributes as inputs and outputs a new set of attributes, referred to as <b>varying</b> values, that get fed to the rasterizer. At a minimum, the vertex shader calculates the projected <b>position</b> of the vertex in screen space. The vertex shader can also generate other varying outputs, such as a color or texture coordinates, for the rasterizer to blend across the surface of the triangles connecting the vertex.
+</p>
+
+<h3>Triangle assembly</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl1-triangle-assembly-01.png">
+<p>The GPU then connects the projected vertices to form triangles. It does this by taking the vertices in the order specified by the element array and grouping them into sets of three. The vertices can be grouped in a few different ways:</p>
+<ul>
+<li>Take every three elements as an independent triangle</li>
+<li>Make a <b>triangle strip</b>, reusing the last two vertices of each triangle as the first two vertices of the next
+<li>Make a <b>triangle fan</b>, connecting the first element to every subsequent pair of elements
+</ul>
+<p>The diagram shows how the three different modes behave. Strips and fans both require only one new index per triangle in the element array after the initial three, trading the flexibility of independent triangles for extra memory efficiency in the element array.</p>
+
+<h3>Rasterization</h3>
+<img class="figure floated" src="http://duriansoftware.com/joe/media/gl1-rasterization-01.png">
+<p>
+The <b>rasterizer</b> takes each triangle, clips it and discards parts that are outside of the screen, and breaks the remaining visible parts into pixel-sized <b>fragments</b>. As mentioned above, the vertex shader's varying outputs are also interpolated across the rasterized surface of each triangle, assigning a smooth gradient of values to each fragment. For example, if the vertex shader assigns a color value to each vertex, the rasterizer will blend those colors across the pixelated surface as shown in the diagram.
+</p>
+
+<h3>The fragment shader</h3>
+<p>
+The generated fragments then pass through another program called the <b>fragment shader</b>. The fragment shader receives the varying values output by the vertex shader and interpolated by the rasterizer as inputs. It outputs color and depth values that then get drawn into the framebuffer. Common fragment shader operations include texture mapping and lighting. Since the fragment shader runs independently for every pixel drawn, it can perform the most sophisticated special effects; however, it is also the most performance-sensitive part of the graphics pipeline.
+</p>
+
+<h3>Framebuffers, testing, and blending</h3>
+<p>
+A <b>framebuffer</b> is the final destination for the rendering job's output. In addition to the default framebuffer OpenGL gives you to draw to the screen, most modern OpenGL implementations let you make <b>framebuffer objects</b> that draw into offscreen <b>renderbuffers</b> or into textures. Those textures can then be used as inputs to other rendering jobs. A framebuffer is more than a single <span class="smallcap">2d</span> image; in addition to one or more <b>color buffers</b>, a framebuffer can have a <b>depth buffer</b> and/or <b>stencil buffer</b>, both of which optionally filter fragments before they are drawn to the framebuffer: <b>Depth testing</b> discards fragments from objects that are behind the ones already drawn, and <b>stencil testing</b> uses shapes drawn into the stencil buffer to constrain the drawable part of the framebuffer, "stencilling" the rendering job. Fragments that survive these two gauntlets have their color value <b>alpha blended</b> with the color value they're overwriting, and the final color, depth, and stencil values are drawn into the corresponding buffers.
+</p>
+
+<h3>Conclusion</h3>
+<p>
+That's the process, from vertex buffers to framebuffer, that your data goes through when you make a single "draw" call in OpenGL. Rendering a scene usually involves multiple draw jobs, switching out textures, other uniform state, or shaders between passes and using the framebuffer's depth and stencil buffers to combine the results of each pass. Now that we've covered the general dataflow of <span class="smallcap">3d</span> rendering, we can write a simple program to see how OpenGL makes it all happen. Throughout the course of this tutorial, I'd love to <script>male_to('com', 'joe', 'duriansoftware', 'get your feedback')</script>&mdash;let me know if it's helping you or if anything doesn't make sense.
+</p>
+<h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">Chapter 2 &raquo;</a></h4>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>More than you ever wanted to know about Fortran ABIs</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/More-than-you-ever-wanted-to-know-about-Fortran-ABIs.html">More than you ever wanted to know about Fortran ABIs</a></h3>
+<h4>updated February 12, 2009 14:42:13 PDT</h4>
+<p>
+A while back, I contributed a binding to <a href="http://netlib.org/">BLAS</a>, the blind kung-fu master on the mountain of math libraries, to the <a href="http://factorcode.org/">Factor programming language</a> so I could use Apple's Accelerate.framework from a game project. I started out by binding to CBLAS, the supposedly standard Fortran-to-C bridge for BLAS. Then the Factor team had to go and try to get BLASes running on every platform they support, and it turns out CBLAS is a pain in the ass to get working when it's not bundled with the BLAS implementation. So to make setting up BLAS with Factor simpler, and to make it easier to use commercial BLASes such as AMD's <a href="">ACML</a> which don't include a standard CBLAS, I built an awesome Fortran FFI on top of Factor's awesome C FFI. Here's how you can do the same.
+</p>
+
+<h4>Basics</h4>
+<p>The big things that make a Fortran procedure different from a C function is that all its arguments are passed by reference and that its name is case insensitive and gets decorated differently from C procedure names. So a Fortran function like this, compiled with gfortran:</p>
+<pre>
+      REAL FUNCTION SDOT(N,SX,INCX,SY,INCY)
+      INTEGER N,INCX,INCY
+      REAL SX(*),SY(*)
+</pre>
+<p>could be called from C as though it were declared like this:</p>
+<pre>
+float sdot_(int *n, float *sx, int *incx, float *sy, int *incy);
+</pre>
+<p>gfortran's name decoration schtick is that it lowercases the function name and tacks an underscore to the end. Now the great thing about Fortran is that it has no standard ABI, so there are all these great details to work out about how to be compatible across compilers. I implemented the ABIs used by three Fortran implementations:</p>
+<ul>
+<li>gfortran, the Fortran frontend for GCC 4,</li>
+<li>f2c, the ancient Fortran 77 to C translator (which shares its ABI with g77, the old GCC frontend),</li>
+<li>and Intel Fortran.</li>
+</ul>
+<p>I'll mainly talk about the gfortran ABI and mention the little differences as we go.</p>
+
+<h4>Strings</h4>
+Fortran strings aren't zero-terminated like C strings, nor do they include a length in their representation. Back in the days of fixed-length records, declaring the string length in your variable type was all the length information you needed. But even Fortran has changed to keep up the times, and variable-length strings were patched into the language with Fortran 77. These are handled by passing around the length of each CHARACTER parameter by value at the end of the argument list. So:
+<pre>
+      INTEGER FUNCTION ZIM(S, X, T, Y)
+      CHARACTER(*) S, X, T
+      INTEGER X, Y
+</pre>
+<p>looks like this from C:</p>
+<pre>
+int sxsxsx_(char *s, int *x, char *t, int *y, size_t s_length, size_t t_length);
+</pre>
+<p>That way, old code that didn't need the string length could ignore the end of the argument list and just work.</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

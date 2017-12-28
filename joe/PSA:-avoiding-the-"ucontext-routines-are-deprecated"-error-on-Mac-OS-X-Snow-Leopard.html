@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PSA: avoiding the "ucontext routines are deprecated" error on Mac OS X Snow Leopard</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/PSA:-avoiding-the-&quot;ucontext-routines-are-deprecated&quot;-error-on-Mac-OS-X-Snow-Leopard.html">PSA: avoiding the "ucontext routines are deprecated" error on Mac OS X Snow Leopard</a></h3>
+<h4>updated August 28, 2009 09:02:44 PDT</h4>
+<p>
+Recently I upgraded to the new version of Mac OS X. I tried compiling <a href="http://factorcode.org/">Factor</a> on it, but got this error:
+</p>
+<pre>
+In file included from vm/os-macosx-x86.64.hpp:1,
+                 from vm/platform.hpp:38,
+                 from vm/master.hpp:36,
+                 from vm/os-unix.cpp:1:
+/usr/include/ucontext.h:42:2: error: #error ucontext routines are
+    deprecated, and require _XOPEN_SOURCE to be defined
+</pre>
+<p>
+I googled this error, and I found that users of <a href="https://bugs.launchpad.net/sbcl/+bug/393845">SBCL</a>, <a href="http://www.mail-archive.com/v8-users@googlegroups.com/msg01337.html">V8</a>, and <a href="http://trac.macports.org/ticket/20764">boehm gc</a> ran into the same problem, but the ensuing bug tracker and mailing list discussions didn't turn up any robust solutions. So I looked at Apple's <tt>ucontext.h</tt> header, and it turns out the only thing they are deprecating are the context manipulation functions from the old X/Open standard: <tt>getcontext</tt>, <tt>makecontext</tt>, <tt>setcontext</tt>, and <tt>swapcontext</tt>. Factor doesn't use these functions; it only needs the <tt>ucontext_t</tt> structure, which is defined in the non-deprecated header <tt>sys/ucontext.h</tt>. By changing Factor's C++ core to include <tt>sys/ucontext.h</tt> instead of <tt>ucontext.h</tt> on Mac OS X, the error goes away, and you don't need to define <tt>_XOPEN_SOURCE</tt> or leave yourself vulnerable to Apple's aggressive deprecated API elimination when OS X Def Leppard comes out in a couple of years.
+</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

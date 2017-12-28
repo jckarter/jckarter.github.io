@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Putting the Clay programming language through its paces</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Putting-the-Clay-programming-language-through-its-paces.html">Putting the Clay programming language through its paces</a></h3>
+<h4>updated December 16, 2010 21:57:43 PDT</h4>
+<p>
+For the last couple of months I've been working with KS Sreeram on the <a href="http://tachyon.in/clay/">Clay programming language</a>, a new systems language focused on generic programming. In that time, I've been giving the language implementation a real-world test by using it to write a non-compiler, non-library, non-framework application. I used to like iTunes as a music player on OS X, but it's been bugging me more and more as each new version piles on media store and social networking crap I don't want just to be able play music. I decided to do something about it and knock out a back-to-basics Mac music player using Apple's Cocoa framework. The result is <a href="https://github.com/jckarter/Vinyl">Vinyl</a> (as in, "I only listen to (band) on Vinyl"):
+</p>
+<center><img class="figure" src="http://duriansoftware.com/joe/media/Vinyl.png..."></center>
+<p>It needs a bit more work (and some graphics) before it's ready for prepackaged binaries, but you can check out the source (about 5,000 lines of Clay) on github now. Another music player isn't exactly a revolutionary product, but it scratched an itch, and the project worked well as an experiment to flex Clay's application building and library interfacing muscles. Along the way, I also developed an Objective-C bridge and SQLite interface for Clay.
+</p>
+<h3>What works</h3>
+<p>The Objective-C bridge turned out better than I expected. The metaprogramming ability is deep enough in Clay to make using Cocoa classes and defining new classes feel fairly natural without explicit syntactic support; for example, here's a <a href="http://bitbucket.org/kssreeram/clay/src/9e471236aed5/test/cocoa/appkit/example.clay">simple calculator program</a>, or for a bit hairier example, the <a href="https://github.com/jckarter/Vinyl/blob/master/Vinyl/controllers/main.clay">Vinyl main controller object</a>. The Clay bridge even improves on Objective-C in a number of respects:</p>
+
+<ul>
+<li>Since Clay supports RAII, a <tt>Retained[]</tt> smart pointer type can handle Objective-C's memory management rules.
+<pre>var defaults = NSUserDefaults.standardUserDefaults();
+// the Retained wrapper will automatically release columnDefaults
+// when it goes out of scope
+var columnDefaults = Retained(defaults
+    .dictionaryForKey(#"Columns")
+    .mutableCopy()
+);
+if (visible?)
+    columnDefaults.setObject_forKey(true, columnName);
+else
+    columnDefaults.removeObjectForKey(columnName);
+defaults.setObject_forKey(columnDefaults, #"Columns");</pre>
+</li>
+<li>New Objective-C classes are defined in Clay using compile-time functions, and common boilerplate method definitions, such as property accessors or <tt>copyWithZone:</tt> and <tt>dealloc</tt> methods that invoke the the copy constructors or destructors of the instance variables, can be automated with additional compile-time functions. Combine this with <tt>Retained</tt> and it's easy to get memory management in new classes right.
+<pre>record PlayInfoView = newClass(NSView,
+    InstanceVars(
+        ...IBOutlets(
+            trackField: NSTextField,
+            timeSlider: NSSlider,
+        ),
+        trackName: Retained[NSString],
+        albumName: Retained[NSString],
+        artistName: Retained[NSString],
+        currentTime: NSTimeInterval,
+        durationTime: NSTimeInterval,
+    ),
+    ClassMethods(),
+    InstanceMethods(
+        // DeallocInstanceMethod provides a "dealloc" method that will
+        // automatically call Clay destructors on all the InstanceVars,
+        // thereby releasing all Retained[] slots
+        DeallocInstanceMethod(),
+        // PropertyInstanceMethods provides "trackName" and "setTrackName:".
+        // "setTrackName:" will use Retained[]'s assignment operator
+        // to retain the new value then release the old, similar to a
+        // synthesized retain property in Objective-C
+        PropertyInstanceMethods(#trackName, NSString),
+        PropertyInstanceMethods(#albumName, NSString),
+        // and so on
+    ),
+);</pre>
+(One thing I haven't implemented yet is a <tt>Copied[]</tt> smart pointer to behave like a <tt>copy</tt> property in Objective-C, <tt>copy</tt>ing newly-assigned values instead of <tt>retain</tt>ing them.)
+</li>
+<li>Clay supports statically-typed variadic functions, so it can provide safe variations of the nasty-but-convenient <tt>+[NSArray array&#8203;With&#8203;Objects:]</tt> and <tt>+[NSDictionary dictionary&#8203;With&#8203;Objects&#8203;And&#8203;Keys:]</tt> methods.
+<pre>...</pre>
+</li>
+</ul>
+
+<p>It would be fun to try writing a similar library over <tt>glib</tt> to provide a <a href="http://live.gnome.org/Vala">Vala</a>-like interface to the GTK+ and GNOME libraries.</p>
+
+<p>The SQLite wrapper also works nicely...
+
+<p>Clay's "everything is generic by default" approach allows for a coding style similar to that of dynamic languages, allowing you to explore the design of your algorithms without immediately worrying about specific types, with the added benefit that the types of operations still propagate and the compiler will keep you from doing anything that doesn't make sense. Once the design solidifies, it's then straightforward to introduce type constraints and write type-specific optimizations as necessary.</p>
+
+<p>Overall, Clay very much feels like the language C++ was supposed to be. It avoids the massive boilerplate, ambiguous syntax, and unpredictable implicit behavior that tend to cause template-heavy C++ projects to end in heartbreak. Compile-time computation is explicitly supported rather than merely possible through template hacks.  Metaprogramming and functional programming in Clay thus feel like legitimate techniques rather than dirty hacks.</p>
+
+<h3>What doesn't work so great yet</h3>
+<p>Despite my positive experience developing Vinyl in Clay, it's still an adventure using it compared to its more mature cousins. Clay is a very young language, and it has all the issues you'd expect being a young language. There are compiler bugs, the design of the libraries and the language are still evolving, documentation is nearly nonexistent, and debuggers and IDEs have no support. Some of the more glaring problems:</p>
+<ul>
+<li>Compile times get painful quickly, as the entire program and library stack needs to be recompiled after every change. The compiler also currently makes no effort to use multiple cores. Vinyl takes more than a minute to compile, when the equivalent Objective-C project would probably take around a second.</li>
+<li>Error reporting from metaprogramming-heavy libraries like the Objective-C bridge is pretty bad. There is currently no mechanism for custom error reporting, so everything ranging from a mistyped method name to a type mismatch in a method call generates a generic "no matching operation" error. C++ template libraries often have similar problems. Clay does improve over C++'s template errors in an important respect: you can constrain the types of the inputs at the user-interface level, so the "no matching operation" error gets raised from user code instead of a dozen layers deep within the bowels of the library implementation.</li>
+<li>Like C and C++, Clay doesn't attempt to enforce any sort of safety. There's no dependent type system like in <a href="http://www.ats-lang.org/">ATS</a> or type state system like in <a href="https://github.com/graydon/rust/wiki">Rust</a> to make sure you check necessary assertions, and the standard library isn't implicitly safe and garbage-collected like in <a href="http://golang.org/">Go</a>. Combine this unsafety with the lack of source-level debugger support and you're looking at lots of annoying assembly-language groveling and <tt>printf</tt> debugging when tracking down crashes. The type system is at least stricter than in C or C++&mdash;values and pointers are never implicitly converted and must always be explicitly cast. Under this strict type system, it might be possible to construct a safe library layer in Clay more airtight than in C++, but I haven't attempted to.</li>
+<li>The <tt>lib-clay</tt> library is sparse compared to libc or the C++ STL, although it's straightforward to call out to C libraries.</li>
+<li>I'm not a big fan of Xcode, but I found myself missing its code completion capabilities when typing out (or trying to remember) Cocoa's <tt>very&#8203;Long&#8203;Method&#8203;Names:&#8203;with&#8203;Many&#8203;Arguments:&#8203;and&#8203;Several&#8203;Variations:</tt>. Also, manually inputting outlet and action information into Interface Builder was enough of a pain that I wrote a script to generate an IB-parsable Objective-C <tt>.h</tt> file for my Clay-defined classes.</li>
+</ul>
+
+<p>Although the long compile times, lack of enforced safety, and poor tool support limit its current practicality for large-scale application development, it is possible to successfully write small applications in pure Clay. In its current state, I think it would work great as an adjunct to a mostly C, Objective-C, or higher-level language project that could benefit from C++-style generic programming in a few hot spots. Over time, I don't think any of the current problems with Clay are insurmountable, and it will become more robust as a standalone application platform as we continue to develop it. The next iteration of the Clay compiler KS and I are working on is particularly intended to provide faster compile-time evaluation, incremental compilation, and better debug information.</p>
+
+<p>If you're interested in checking out Clay for yourself, I've started a <a href="https://github.com/jckarter/clay/wiki">Clay wiki</a> on github to collect ad-hoc documentation and thoughts about development. There is also a <a href="http://lists.tachyon.in/listinfo/clay">mailing list</a> and IRC channel (<tt>#clay</tt> on <tt>irc.freenode.net</tt>).</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

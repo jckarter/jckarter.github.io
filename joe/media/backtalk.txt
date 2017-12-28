@@ -1,0 +1,35 @@
+* block syntax
+    * indentation-based
+
+    : # implicit args
+        foo
+        bar
+
+    (x y z): # named args
+        foo
+        bar
+
+    * one-line
+
+    (x, y, z) [foo]
+    [foo]
+
+* smalltalk-ish named function syntax
+
+if x -then [y] -else [z]
+
+if x -then:
+    y
+-else:
+    z
+
+* names that end in +-*/^ etc. go infix, with predetermined precedence
+
+1 + 2
+
+{3, 4} v- {5, 6}
+
+* implicit arguments autofilled from pipeline
+
+x; if -then [y] -else [z]
+

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Fun with float bits: Fast logarithms and exponents</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Fun-with-float-bits:-Fast-logarithms-and-exponents.html">Fun with float bits: Fast logarithms and exponents</a></h3>
+<h4>updated January 7, 2009 12:40:13 PDT</h4>
+<p>
+So you've already tried <strike>John Carmack</strike>Michael Abrash's famous <a href="http://www.mceniry.net/papers/Fast%20Inverse%20Square%20Root.pdf">bit-molesting inverse square root function</a> a million times. Now you're bored, and you're looking to recapture that thrill you felt the first time you felt up a float's skirt and messed with its bits. Let's check out some new tricks you can do with a little understanding of <a href="http://en.wikipedia.org/wiki/IEEE_754">float anatomy</a> and see if we can get your blood pumping hot again.
+</p>
+<p>But first, a word from mom: Unsafe optimization kills. CPUs are pretty fast these days. Only pull this sort of shit if you and your code are comfortable with each other and you're sure the builtin math functions are slowing it down.</p>
+<h4>Logarithms</h4>
+<p>Thanks to the way floats are represented, we can get something resembling a logarithm for a positive float just by reinterpreting its bits as an integer. For a single precision float, where the exponent is biased by 127 and the mantissa is 23 bits, converting a float <tt>x</tt> to its bits is like calculating <tt>2<sup>23</sup>(p + 127 + m)</tt>, where the exponent <tt>p = floor(log<sub>2</sub>x)</tt> and the mantissa <tt>m = x/p - 1</tt>. The exact integer part of the log<sub>2</sub> is encoded in the exponent, and we can use the mantissa as a linear guess for the fractional part. We can tease it out by dividing by 2<sup>23</sup> and subtracting 127:
+</p>
+<pre>
+float logarithmish(float x) {
+    static const int BIAS = 127 &lt;&lt; 23;
+    static const float SHIFT = 1.0f/float(1 &lt;&lt; 23);
+
+    return float(*reinterpret_cast&lt;int*&gt;(&amp;x) - BIAS)*SHIFT;
+}
+</pre>
+<p>Let's graph that against the real <tt>log2</tt> function:</p>
+<img src="logarithmish-1.png">
+<p>Sure looks like a logarithm curve, if it were rendered by the Quake engine. We can write a little test harness to see how well our function approximates the laws of logarithms:</p>
+<pre>
+#define DEMONSTRATE(expr, result) \
+    std::cout &lt;&lt; #expr " = " &lt;&lt; expr &lt;&lt; "; " #result " = " &lt;&lt; result &lt;&lt; "\n"
+
+int main() {
+    DEMONSTRATE(logarithmish(30.0f) - logarithmish(6.0f), logarithmish(5.0f));
+    DEMONSTRATE(logarithmish(6.0f) + logarithmish(5.0f), logarithmish(30.0f));
+    DEMONSTRATE(3.0f*logarithmish(6.0f), logarithmish(216.0f));
+    DEMONSTRATE(0.5f*logarithmish(9.0f), logarithmish(3.0f));
+}
+</pre>
+<p>That gives us:</p>
+<pre>
+logarithmish(30.0f) - logarithmish(6.0f) = 2.375; logarithmish(5.0f) = 2.25
+logarithmish(6.0f) + logarithmish(5.0f) = 4.75; logarithmish(30.0f) = 4.875
+3.0f*logarithmish(6.0f) = 7.5; logarithmish(216.0f) = 7.6875
+0.5f*logarithmish(9.0f) = 1.5625; logarithmish(3.0f) = 1.5
+</pre>
+<p>It's definitely an activist interpretation of the laws, but good enough for government work. We'll look at improving accuracy in just a bit. Now the whole reason we're bending the law is to score some speed; let's see how we did there:</p>
+<pre>
+template&lt;typename NullaryFunction&gt; inline unsigned long benchmark_log(UnaryFunction f)
+{
+    struct timeval start, end;
+    gettimeofday(&amp;start, NULL);
+    for (unsigned i = 0; i &lt; 1000000; ++i)
+        f(3.14159f);
+    gettimeofday(&amp;end, NULL);
+    return (end.tv_sec - start.tv_sec)*1000000 + (end.tv_usec - start.tv_usec);
+}
+
+void 
+</pre>
+<p>If you need to approximate the natural or common logarithms instead of base two, no problem: Save <tt>1/log<sub>2</sub>e</tt> or <tt>1/log<sub>2</sub>10</tt> to a constant and multiply the result of logarithmish() by that.</p>
+
+<h4>Exponents</h4>
+<p>You're a bright kid, so you probably already realized that you can do everything we just did backwards to approximate <tt>2<sup>x</sup></tt>. But we'll spell it out in case one of your dumb friends reads this.</p>
+<pre>
+float exponentish(float x) {
+    static const int BIAS = 127 &lt;&lt; 23, UNSHIFT = float(1 &lt;&lt; 23);
+    int bits = int(x*UNSHIFT) + BIAS;
+    return *reinterpret_cast&lt;float*&gt;(&amp;bits);
+}
+
+int main() {
+    DEMONSTRATE(exponentish(5.0f) * exponentish(3.0f), exponentish(8.0f));
+    DEMONSTRATE(exponentish(6.0f) / exponentish(1.5f), exponentish(4.5f));
+}
+</pre>
+<img src="exponentish-1.png">
+<pre>
+exponentish(5.0f) * exponentish(3.0f) = 256; exponentish(8.0f) = 256
+exponentish(6.0f) / exponentish(1.5f) = 21.3333; logarithmish(4.5f) = 2.125
+</pre>
+<p>Like the logarithm, it's not very precise, but you could render a nice ADSR envelope with it and only the most golden-eared audiophile would notice the difference. To approximate <tt>e<sup>x</sup></tt> and <tt>10<sup>x</sup></tt>, multiply the input by <tt>log<sub>2</sub>e</tt> or <tt>log<sub>2</sub>10</tt>.</p>
+
+<h4>Improving accuracy</h4>
+<p>Those knobby knees are a bit of an eyesore. Let's look at the logarithm again and see if we can sand it off a bit. We know we've got the exact integer part encoded in the exponent of the float, so the error must be entirely in the mantissa. This becomes obvious if we graph the error between the real log<sub>2</sub> and our function on a logarithmic scale:
+</p>
+<img src="logarithm-error.png">
+<p>Looks like the same error curve repeats itself between each power of two. Right now we're calculating the mantissa of the logarithm using what amounts to <tt>y = x</tt>. There are a 
+
+http://www.icsi.berkeley.edu/pubs/techreports/TR-07-002.pdf
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,37 @@
+DENTALPLAN
+Factor Needs Braces {}
+
+* magic characters (can't be used in identifiers)
+    ()[]{}.,:;"\`
+* all other non-whitespace characters can be used in identifiers (if they aren't numbers)
+* `` escapes identifiers with any characters
+    `(foo)`
+    `word with spaces`
+* some identifier chars have special significance as first character
+  - pipeline identifiers
+    '       # ordered
+    '1      # positional
+* literals
+    123         # number
+    "asdf"      # string
+    """asdf"""  # also string
+    [1, 2, 3]   # sequence
+* block literals
+    
+* statements
+    name                        # naked: invoke function with entire pipeline as inputs
+                                #   or access variable
+    name expression             # prefix: invoke function with entire pipeline + expression
+    expression name expression  # infix: invoke function with two arguments
+    expression
+    statement; statement        # pipeline statements together
+* expressions                   #
+    literal                     # literal value
+    '                           # pipeline value
+    'number                     # positional pipeline value
+    name                        # nullary function or variable
+    name(expression)            # function with arguments
+    name(expression) blocks     # function with arguments and block arguments
+    (statement)                 # grouped statement
+
+    expression, expression      # string together value sets from multiple expressions 

@@ -1,0 +1,7 @@
+body { font-family: Calibri, Helvetica, Arial; }
+h1 { font-weight: bold; font-size: 40px; text-align: center; }
+h2#byline { font-weight: bold; font-size: 30px; text-align: center; }
+div#comic { text-align: center; padding-top: 125px; }
+div#strawman-says, div#pinhead-says { text-transform: uppercase; font-size: 30px; position: absolute; top: 150px; width: 300px; text-align: center; }
+div#strawman-says { left: 50px; }
+div#pinhead-says { right: 50px; }

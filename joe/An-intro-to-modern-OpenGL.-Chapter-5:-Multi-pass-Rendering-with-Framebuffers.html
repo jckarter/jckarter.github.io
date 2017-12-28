@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>An intro to modern OpenGL. Chapter 5: Multi-pass Rendering with Framebuffers</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-5:-Multi-pass-Rendering-with-Framebuffers.html">An intro to modern OpenGL. Chapter 5: Multi-pass Rendering with Framebuffers</a></h3>
+<h4>updated August 20, 2010 13:35:47 PDT</h4>
+<p>(intro)</p>
+<h3>OpenGL extensions</h3>
+<p>Offscreen rendering wasn't made a standard part of desktop OpenGL until OpenGL 3.0; however, almost every OpenGL 2 implementation supports it as an <b>extension</b>. (In OpenGL ES 2, framebuffer objects are a standard feature.) OpenGL provides a naming convention and capability query system to allow vendors to provide additional features. Extensions are given names of the form <tt>GL_<i>vendor</i>_<i>name</i></tt>, where <tt><i>vendor</i></tt> is an all-caps identifier for the vendor, such as <tt>NV</tt> or <tt>ATI</tt>. Multi-vendor extensions are given the vendor identifier <tt>EXT</tt>. OpenGL functions, types, and symbols defined by the extension have the vendor identifier suffixed to their names. The framebuffer extension is named <tt>GL_EXT_framebuffer_object</tt>, and the functions and symbols it provides have <tt>EXT</tt> suffixed to their names: <tt>glBindFramebufferEXT</tt>, <tt>GL_FRAMEBUFFER_EXT</tt>, and so on.</p>
+<p>GLEW makes it easy to check the availability of OpenGL extensions. For most common OpenGL extensions, <tt>glewInit</tt> will set a global boolean variable <tt>GLEW_<i>vendor</i>_<i>name</i></tt> to indicate whether that extension is available under the current OpenGL driver. We can require OpenGL 2.0 with the framebuffer extension using the following code:</p>
+<pre>    glewInit();
+    if (!GLEW_VERSION_2_0) {
+        fprintf(stderr, "OpenGL 2.0 not available\n");
+        return 1;
+    }
+    if (!GLEW_EXT_framebuffer_object) {
+        fprintf(stderr, "OpenGL framebuffer object extension not available\n");
+        return 1;
+    }</pre>
+<h3>Framebuffer and renderbuffer objects</h3>
+<p>The framebuffer object extension introduces two new kinds of OpenGL objects. <b>Framebuffer objects</b> represent an offscreen rendering target. A framebuffer object has <tt>attachments</tt> that connect it to storage for its color, depth, and stencil buffers. These attachments can be to either texture objects or to <b>renderbuffer objects</b>. Attaching textures to a framebuffer object lets us take the output from one rendering pass and use it as input to another. Renderbuffers provide storage for color, depth, or stencil rendering independent of textures.</p>
+<pre>pipeline with framebuffer attached to texture objects</pre>
+<h3>Filtering a rendered image</h3>
+<p>
+<h3>Shadow mapping</h3>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

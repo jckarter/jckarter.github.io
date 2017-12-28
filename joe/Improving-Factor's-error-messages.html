@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Improving Factor's error messages</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Improving-Factor&apos;s-error-messages.html">Improving Factor's error messages</a></h3>
+<h4>updated March 13, 2010 01:38:57 PDT</h4>
+<p>
+For all its amazing features, Factor has awful error reporting. This is probably because reporting good error messages is not as sexy as performance tuning or writing new libraries, but nonetheless, error reporting is a huge, important part of a development environment's user experience. Just look at all the excitement over <a href="http://fseek.me/img/clang.png">Clang giving better error messages than GCC.</a> Factor's still a ways away from correcting spelling errors, but I did spend some time improving its error reporting in two particularly deficient areas: its reporting of syntax errors, and its handling of stack management errors. The nerdy details are below; the gist is: if you've tried Factor before and given up on it because of its opaque error messages, now's a great time to give it another shot. Or if you've stuck with Factor despite its Gen-X apathy toward invalid code, enjoy the monkey that just got pulled off your back.
+</p>
+
+<h3>Syntax errors</h3>
+<p>
+Factor's lexer keeps track of where in the source the next token should be read. When a syntax error occurs, the lexer adds this pointer to the reported error message:
+</p>
+<pre>
+5:     swa pappend ;
+          ^
+No word named ``swa'' found in current vocabulary search path
+</pre>
+<p>
+This works well when syntax errors are detected and raised immediately after being read from the lexer. However, Factor has extensible syntax, and many poorly written syntax handlers would undiscerningly read in their entire form, not verifying for correctness until a subsequent pass. You used to get a lot of this:
+</p>
+<pre>
+12:     ) ;
+           ^
+&#x201c;intt&#x201d; is not a C type
+</pre>
+<p>leaving you to open the source code in your editor and search for "intt" to find where the problem actually was. Going through and fixing these syntax handlers to parse and verify their input as it comes from the lexer lets the error messages give much better immediate feedback:</p>
+<pre>
+10:         intt bar,
+                ^
+&#x201c;intt&#x201d; is not a C type
+</pre>
+<p>There are some syntax errors that can't be detected and reported so immediately. Though Factor doesn't suffer much syntax that requires backtracking, it poorly handles missing closing tokens. With its free-love approach to syntax, you can't really know for sure that your "}" or ";" isn't just around the corner until you hit the end of the file you're parsing. For example, trying to parse this:
+<pre>
+{ 1 2 3 }
+{ 4 5 6
+{ 7 8 9 }
+</pre>
+<p>gives a pretty worthless error message:</p>
+<pre>
+4: 
+   ^
+Expected } but got end of input
+</pre>
+<p>The missing brace might be obvious in this case, but in a giant haystack of differently sized and punctuated definitions, finding where the needle needs to go could take a while. Now, when an syntax error occurs, it displays the location of the innermost active syntax word in addition to the location the error was raised: 
+</p>
+<pre>
+2: { 4 5 6
+4: 
+   ^
+Expected ; but got end of input
+</pre>
+<p>That makes it immediately clear which literal is incomplete. The added context benefits other syntax error messages too:
+</p>
+<pre>
+4: : foo ( x y -- z )
+5:     swa pappend ;
+          ^
+No word named ``swa'' found in current vocabulary search path
+</pre>
+<pre>
+ 8: FUNCTION: int foo (
+10:         intt bar,
+                ^
+&#x201c;intt&#x201d; is not a C type
+</pre>
+
+<h3>Stack logic errors</h3>
+<p>
+Factor enforces much stricter stack discipline than many of its RPN kin: functions must take a declared number of inputs, yield a declared number of outputs, and when using "if" statements and loops, must keep the stack balanced among their branches. The compiler will shun any function definition that rejects these tenets:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>: derp ( -- ) 2 ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+Stack effect declaration is wrong
+inferred (( -- x ))
+declared (( -- ))
+
+
+<i>( scratchpad )</i> <b>: derp ( ? -- x ) [ 2 ] [ ] if ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+Unbalanced branches
+[ 2 ] (( x -- x ))
+[ ] (( x -- ))
+</pre>
+<p>
+These error messages are fairly self-explanatory. The problem comes when using higher-order functions. The compiler inlines most common control flow functions (such as map and reduce) so that it can optimize them down to simple loops. As it verifies a function's stack usage, the compiler descends into the definitions of these inlined functions. When it encounters a stack imbalance, it often ends up reporting the error from the perspective of whatever deeply nested inlined function it happened to have been walking through, leaving no breadcrumb trail back to your own code that caused it:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>: derp ( x -- ) [ 2drop ] each ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+The recursive function (each-integer) digs arbitrarily deep into the stack
+
+
+<i>( scratchpad )</i> <b>: derp ( x -- ) [ drop ] [ drop ] if* ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+Unbalanced branches
+[ drop call ] ( x -- )
+[ nip call ] ( x x -- )
+</pre>
+<p>
+The compiler could just as well have done away with the pretense of context and reported "ERROR". In a longer function definition, finding the one jenga tile knocking down the stack pretty much required single-stepping the code.
+</p>
+<p>
+C++ suffers a similar problem with template expansion: too little verification of input parameters is done up front, and error reporting is postponed until the last minute when something goes undeniably wrong. Just like the Boost library introduced a <a href="http://www.boost.org/doc/libs/1_42_0/libs/concept_check/concept_check.htm">Concept Check library</a> to enforce up-front constraints on C++ template parameters, the solution to Factor's stack checking error problem is to have higher-order functions declare the expected stack effects of their input functions, and have the compiler enforce these effects. The resulting error messages are much clearer and more useful:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>: derp ( x -- ) [ 2drop ] each ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+The input quotations to each don't match their expected effects
+Input     Expected           Got
+[ 2drop ] (( ... x -- ... )) (( x x -- ))
+
+
+<i>( scratchpad )</i> <b>: derp ( x -- ) [ drop ] [ drop ] if* ;</b>
+:errors - show 1 compiler errors
+<i>( scratchpad )</i> <b>:errors</b>
+Asset: derp
+
+The input quotations to if* don't match their expected effects
+Input    Expected           Got
+[ drop ] (( ..a ? -- ..b )) (( x -- ))
+[ drop ] (( ..a -- ..b ))   (( x -- ))
+:errors - show 1 compiler errors
+</pre>
+<p>
+Inlined higher-order functions are allowed a bit more leeway in how much stack they use and leave behind, as long as they leave the stack balanced across any loops or branches they set up. (This allows for things like "reduce" being implemented in terms of "each", by taking its accumulator as an extra input and leaving the updated value as an extra output.) The "...", "..a", and "..b" in those "Expected" columns are "row variables" that represent a number of values taken as inputs or outputs that has to be consistent among the stack effects using the same variable name. Read the <a href="http://docs.factorcode.org/content/article-effects-variables.html">Factor help article</a> about them for the details.
+</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Get your RAII on with the finally template class</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Get-your-RAII-on-with-the-finally-template-class.html">Get your RAII on with the finally template class</a></h3>
+<h4>updated March 31, 2009 15:56:58 PDT</h4>
+<p>
+C++'s destructors are great for ensuring that resources get cleaned up at the end of a scope, but writing wrapper classes for every damn C library type you use gets tired real quick. <a href="http://factorcode.org/slava/">Slava</a> suggested that I write a template class to do it once, so guess what? I did. 
+</p>
+<pre>
+template&lt;typename T&gt;
+struct finally {
+    typedef T value_type;
+    typedef boost::function&lt;void (T)&gt; destructor_type;
+
+    T object;
+    destructor_type destructor;
+
+    finally(T o, destructor_type d) : object(o), destructor(d) {}
+    ~finally() { destructor(object); }
+};
+</pre>
+<p>
+With <tt>finally</tt> in your toolbox, whenever you need to toss a <tt>fopen</tt>, <tt>malloc</tt>, or other C resource acquisition in, you don't need to give up exception safety anymore!
+</p>
+<pre>
+{
+    FILE *f = fopen("foo", "r");
+    finally&lt;FILE*&gt; close_f(f, fclose);
+}
+
+{
+    void *buf = malloc(17);
+    finally&lt;void*&gt; free_buf(buf, free);
+}
+
+{
+    PGconn *conn = PQconnectdb(conninfo);
+    finally&lt;PGconn*&gt; finish_conn(conn, PQfinish);
+}
+</pre>
+<p>
+Because <tt>finally</tt> uses <a href="http://www.boost.org/doc/libs/1_38_0/doc/html/function.html"><tt>boost::function</tt></a> to hold the destructor function, it works with functor objects and functions that don't return <tt>void</tt>.
+</p>
+<p><b>UPDATE:</b> <a href="http://www.reddit.com/r/programming/comments/8906v/joe_groff_get_your_raii_on_with_the_finally/c08l167"><tt>kefex</tt> on reddit</a> points out that <tt>boost::shared_ptr</tt> does this already:</p>
+<pre>
+boost::shared_ptr&lt;FILE&gt; pf(fopen("foo", "r"), fclose);
+</pre>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

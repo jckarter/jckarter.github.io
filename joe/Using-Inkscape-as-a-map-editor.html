@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Using Inkscape as a map editor</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Using-Inkscape-as-a-map-editor.html">Using Inkscape as a map editor</a></h3>
+<h4>updated February 13, 2009 23:25:05 PDT</h4>
+<p>
+BattleMints is coming along great.
+</p>
+<table><tr>
+    <td><img src="http://duriansoftware.com/joe/media/battlemints-teaser-2.png"></td>
+    <td><img src="http://duriansoftware.com/joe/media/battlemints-teaser-3.png"></td>
+</tr></table>
+<p>
+When I started working on it, I slapped together a quick-and-dirty map editor myself. Making a basic editor that could place enemies and wireframe walls took only a day of work in <a href="http://factorcode.org/">Factor</a>, but when I got to the point where I tried to design actual maps, I found myself craving all the trappings of a decent vector graphics illustrator: grouping, copy and paste, rotation, node snapping, and so on. Rather than reinvent all those wheels, I realized that with a little work I could use <a href="http://www.inkscape.org/">Inkscape</a>, the free vector graphics editor, to build maps and write them out in a format BattleMints can use.
+</p>
+<img src="http://duriansoftware.com/joe/media/inkscape-demo-map.png" width="554" height="516">
+<p>Inkscape uses <a href="http://www.w3.org/Graphics/SVG">SVG</a> as its native format, with extensions to store extra editing information and features that basic SVG doesn't support. This makes its output easy to work in any XML library. Inkscape also provides a <a href="http://wiki.inkscape.org/wiki/index.php/ScriptingHOWTO">simple scripting interface</a> that allows input, output, and effects plugins to be written in any language. Using just the scripting interface, I was able to bend Inkscape to my will without touching the source. (I'm sure someone could do the same sorts of things in Illustrator, but in this economy, who can afford it?)
+</p>
+<p>I have three layers set up in my map documents:</p>
+<img src="http://duriansoftware.com/joe/media/inkscape-layers.png" width="555" height="515">
+<p>The "Templates" layer is where I draw of all the different game objects as I want them to appear in Inkscape. Once I draw each template, I give it a descriptive id like "player" and place place at the upper-left corner of the page (the origin in the SVG coordinate space):</p> 
+<img src="http://duriansoftware.com/joe/media/inkscape-templates.png" width="234" height="349">
+<p>Not very easy to work with everything overlapping like that. To actually build the maps, I make clones of all of the templates and arrange them in a nice layout in the "Palette" layer:</p>
+<img src="http://duriansoftware.com/joe/media/inkscape-palette.png" width="556" height="321">
+<p>I can then duplicate these clones into the "Map" layer and arrange them to design maps. Clones in Inkscape are represented using the SVG <a href="http://www.w3.org/TR/SVG11/struct.html#UseElement"><tt>use</tt> tag</a>, so when I later go to build a map from the SVG I just look at the <tt>xlink:href</tt> attribute to see what kind of object to place. And since I positioned the originals at the origin, the <a href="http://www.w3.org/TR/SVG11/coords.html#TransformList"><tt>transform</tt> tag</a> of each clone tells me where the object is and how it's oriented.
+</p>
+<p>
+I also have "tripwire" objects, which are trigger points in the map that cause events to happen, such as waking up enemies, jumping to the next map, triggering messages, and so on. For these objects I needed more information in the map file than kind and position.
+</p>
+<img src="http://duriansoftware.com/joe/media/inkscape-xml-editor.png" width="627" height="532">
+<p>
+I use Inkscape's XML editor, which gives full control over the XML representation of the underlying SVG file, to store this information. I set the <tt>xmlns:battlemints</tt> namespace declaration on the root <tt>svg</tt> element, draw my tripwires out as paths, then add attributes like <tt>battlemints:tripwire</tt> (to indicate what kind of tripwire) and <tt>battlemints:next-board</tt> (for a goal tripwire, what map to load as the next level) to set up the tripwire.</p>
+<p>Now to save a map file, I wrote <a href="http://duriansoftware.com/joe/media/board-compiler.factor">a script</a> that takes an Inkscape SVG document and outputs a BattleMints board file. It ignores the Palette and Templates layers and walks through the Map layer, generating a game object for every <tt>use</tt> tag and tripwire <tt>path</tt>. The script also performs various postprocessing tasks like eliminating adjacent tile walls from collision detection and swizzling tile objects to improve memory locality. To integrate my script with Inkscape, I write an <a href="http://wiki.inkscape.org/wiki/index.php/MakingAnINX">INX file</a> to describe the script as a plugin:</p>
+<pre>
+&lt;inkscape-extension&gt;
+    &lt;_name&gt;BattleMints board&lt;/_name&gt;
+    &lt;id&gt;com.duriansoftware.BattleMints.board-compiler&lt;/id&gt;
+    &lt;dependency type="executable" location="extensions"&gt;battlemints-board-compiler&lt;/dependency&gt;
+    &lt;output&gt;
+        &lt;extension&gt;.board&lt;/extension&gt;
+        &lt;mimetype&gt;application/x-vnd.DurianSoftware-battlemints-board&lt;/mimetype&gt;
+        &lt;_filetypename&gt;BattleMints board (*.board)&lt;/_filetypename&gt;
+        &lt;_filetypetooltip&gt;BattleMints!&lt;/_filetypetooltip&gt;
+    &lt;/output&gt;
+    &lt;script&gt;
+        &lt;command reldir="extensions"&gt;battlemints-board-compiler&lt;/command&gt;
+    &lt;/script&gt;
+&lt;/inkscape-extension&gt;
+</pre>
+<p>After dropping the script and the INX in <tt>~/.inkscape/extensions</tt>, I can save my map to a board using Inkscape's "Save as Copy" command (while retaining the SVG for future edits), and I'm done:</p>
+<img src="http://duriansoftware.com/joe/media/inkscape-save-as.png" width="563" height="575">
+<p>In summary, Inkscape is a decent graphics editor, it provides easy access to the underlying XML of its documents, its SVG files are easy to manipulate with any language that has an XML library, and it provides a straightforward interface to plugins written in any language. Inkscape is a fantastic tool for designing game maps and other graphical odd jobs.</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>

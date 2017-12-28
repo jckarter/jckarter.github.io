@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Hot-rodding Factor with typed functions, SIMD, and data-map</title>
+<link rel="stylesheet" href="../durians.css">
+<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
+<script src="../durians.js"></script>
+</head>
+<body class="blog">
+<div class="subtitle"><a href="index.html">Joe's blog</a></div>
+<a href="../index.html"><img class="marquee" src="../durians.png"></a>
+<div class="content">
+
+<div class="sidebar">
+<h4>About Me</h4>
+<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
+<br><script>male_to('com', 'joe', 'duriansoftware')</script>
+<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
+<br>github <a href="http://github.com/jckarter">jckarter</a>
+</p>
+<h4>My Friends</h4>
+<p>
+<a href="http://bugsplat.info/">Peter Keen</a><br>
+<a href="http://leto.net/">Jonathan Leto</a><br>
+<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
+<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
+<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
+</p>
+</div>
+
+<div class="blog">
+<h3><a href="http://duriansoftware.com/joe/Hot-rodding-Factor-with-typed-functions,-SIMD,-and-data-map.html">Hot-rodding Factor with typed functions, SIMD, and data-map</a></h3>
+<h4>updated October 19, 2009 21:00:44 PDT</h4>
+<p>
+Factor's gained a number of features and libraries recently to help it deal efficiently with large sets of binary data.
+</p>
+<h3>Typed functions</h3>
+<p>
+Factor's compiler can take advantage of all the type information at its disposal to eliminate type checks and dynamic dispatch. However, since Factor is a dynamic language, very little type information usually survives past a function call; values can't walk across the function's borders as free <tt>integer</tt>s or <tt>float</tt>s but must be smuggled through the call site inside hidden compartments of vans labeled <tt>object</tt>. Factor has some existing features to avoid this: For small functions, you can tear down the wall by <tt>inline</tt>-ing the function at its call site. However, inlining is inefficient for large functions that get used in multiple places. If you like to play fast and loose, the Factor compiler has some hooks to let you make unchecked assertions about the types of values in your code, but these hooks are unsafe, and no one should use them or know about them. Forget I said anything.
+</p>
+<p>
+Given these inadequate choices, I wrote a <a href="http://docs.factorcode.org/content/article-typed.html"><tt>typed</tt> library</a> which wraps the aforementioned compiler hooks in a safe and easy to use syntax. You can define a <tt>TYPED:</tt> function like so:
+</p>
+<pre>
+USING: typed math ;
+IN: scratchpad
+
+TYPED: add-floats ( a: float b: float -- c: float ) + ;
+</pre>
+<p>
+The <tt>add-floats</tt> function will check its inputs before executing, converting them to <tt>float</tt>s if it can and throwing an error otherwise:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>1 2+1/2 add-floats .</b>
+3.5
+<i>( scratchpad )</i> <b>"lol" "wut" add-floats .</b>
+Generic word &gt;float does not define a method for the string class.
+Dispatching on object: "lol"
+</pre>
+<p>
+When <tt>add-floats</tt> is called from another function, its type checks are inlined into the caller, so if the compiler can see that <tt>add-floats</tt>' inputs are going to be <tt>float</tt>s, it can eliminate the checks. The actual body of the function is compiled under a hidden name with the unsafe type declarations applied. After the call to the hidden typed function, the output value types are declared in the calling function, allowing the compiler to further optimize the caller's code. We can see the compiler in action using its <tt>optimized.</tt> diagnostic function:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>USE: compiler.tree.debugger</b>
+<i>( scratchpad )</i> <b>[ 2.0 3.0 add-floats 5.0 * ] optimized.</b>
+[ 2.0 3.0 ( typed add-floats ) 5.0 float* ]
+</pre>
+<p>The compiler knows that <tt>2.0</tt> and <tt>3.0</tt> are <tt>float</tt>s, so it doesn't emit code to check them before calling <tt>( typed add-floats )</tt> (the hidden function that implements <tt>add-floats</tt> with type specializations). The compiler likewise knows that the result of <tt>add-floats</tt> will be a <tt>float</tt>, so multiplying it with <tt>5.0</tt> can be done with the specialized <tt>float*</tt> function instead of the generic <tt>*</tt> operator.
+</p>
+<p>
+One cute thing to note is that <tt>typed</tt> is a completely self-contained Factor library. Nothing needed to change in the Factor VM or compiler to make it work.
+</p>
+<h3>SIMD support</h3>
+<p>
+Slava and I worked together to add support for hardware vector types to the language and compiler. Applying Factor's <a href="http://docs.factorcode.org/content/article-math-vectors.html">library of vector operations</a> to objects of special fixed-size array types such as <tt>float-4</tt> or <tt>short-8</tt> now generates code that uses the SSE machine instructions of modern Intel processors. Together with first-class struct and binary array objects and typed functions, it's possible to write reasonably-performing vector code in a high-level style. For example, the new <a href="http://docs.factorcode.org/content/vocab-math.matrices.simd.html"><tt>math.matrices.simd</tt> library</a> implements fast 4x4 matrix math using code like this:
+</p>
+<pre>
+STRUCT: matrix4
+    { columns float-4[4] } ;
+
+: columns ( a -- a1 a2 a3 a4 )
+    columns&gt;&gt; 4 firstn ; inline
+
+TYPED:: m4.v ( m: matrix4 v: float-4 -- v': float-4 )
+    m columns :&gt; m4 :&gt; m3 :&gt; m2 :&gt; m1
+    
+    v first  m1 n*v
+    v second m2 n*v v+
+    v third  m3 n*v v+
+    v fourth m4 n*v v+ ;
+</pre>
+<p>
+We can load <tt>math.matrices.simd</tt> and look at the compiler's code generation for <tt>m4.v</tt> with the <tt>test-mr.</tt> function:
+</p>
+<pre>
+<i>( scratchpad )</i> <b>USING: math.matrices.simd typed.debugger ;</b>
+<i>( scratchpad )</i> <b>\ m4.v typed-test-mr.</b>
+=== word: ( typed m4.v ), label: ( typed m4.v )
+
+_label 0 
+_prologue T{ stack-frame { total-size 32 } } 
+_label 1 
+##gc RAX RCX 32 { } { } f 
+##peek RAX D 1 
+##peek RCX D 0 
+##unbox-any-c-ptr RBX RAX RDX 
+##alien-vector XMM0 RBX 0 float-4-rep 
+##alien-vector XMM1 RBX 16 float-4-rep 
+##alien-vector XMM2 RBX 32 float-4-rep 
+##alien-vector XMM3 RBX 48 float-4-rep 
+##alien-vector XMM4 RCX 10 float-4-rep 
+##shuffle-vector-imm XMM5 XMM4 { 0 0 0 0 } float-4-rep 
+##mul-vector XMM5 XMM5 XMM0 float-4-rep 
+##shuffle-vector-imm XMM0 XMM4 { 1 1 1 1 } float-4-rep 
+##mul-vector XMM0 XMM0 XMM1 float-4-rep 
+##add-vector XMM5 XMM5 XMM0 float-4-rep 
+##shuffle-vector-imm XMM0 XMM4 { 2 2 2 2 } float-4-rep 
+##mul-vector XMM0 XMM0 XMM2 float-4-rep 
+##add-vector XMM5 XMM5 XMM0 float-4-rep 
+##shuffle-vector-imm XMM4 XMM4 { 3 3 3 3 } float-4-rep 
+##mul-vector XMM4 XMM4 XMM3 float-4-rep 
+##add-vector XMM5 XMM5 XMM4 float-4-rep 
+##inc-d -1 
+##allot RAX 32 byte-array RCX 
+##load-immediate RCX 128 
+##set-slot-imm RCX RAX 1 6 
+##set-alien-vector RAX 10 XMM5 float-4-rep 
+##replace RAX D 0 
+_label 2 
+_epilogue T{ stack-frame { total-size 32 } } 
+##return 
+_spill-area-size 0 
+</pre>
+<p>
+(<tt>typed-test-mr.</tt> is a version of <tt>test-mr.</tt> that examines the secret function for a <tt>TYPED:</tt> definition.) The preamble and postamble code are a bit bulkier than they would be for a similar C function, setting up GC roots at the beginning and allocating a new memory block at the end, but the heart of the function is about as good as it gets: load the four matrix columns and vector into registers (<tt>##alien-vector</tt>), broadcast each element of the vector in turn (<tt>##shuffle-vector-imm</tt>), multiplying it against the corresponding matrix column (<tt>##mul-vector</tt>) and summing the results (<tt>##add-vector</tt>), finally storing the final result in the newly allotted memory block (<tt>##set-alien-vector</tt>). The vector values fly around in vector registers until it's time for the final result to land in its final memory location.
+</p>
+<p>Doug Coleman has also used Factor's SIMD support to implement the <a href="http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/SFMT/M062821.pdf">SIMD Fast Mersenne Twister</a> algorithm in the <a href="http://docs.factorcode.org/content/vocab-random.sfmt.html"><tt>random.sfmt</tt> library</a>. He purports to get performance within a fraction of a second of an equivalent C++ implementation.</p>
+<h3><tt>data-map</tt></h3>
+<p>
+4x4 matrices and random number generators are nice, but the bread and butter purpose of SIMD is to accelerate the processing of large amounts of data. Slava plans to add some auto-vectorization support so that operations like <tt>v+</tt> on packed binary arrays use SIMD operations. But as a general solution, auto-vectorization gets tough for both the compiler and developer to deal with. Even in mature vectorizing compilers, if you pli&eacute; when the compiler expects you to jet&eacute;, the compiler will throw up its hands and vomit scalar code in disgust.
+</p>
+<p>
+As an alternative to auto-vectorization in Factor, I've been experimenting with a macro to make it easy to write explicitly vectorized code, which I've given the working title <a href="http://docs.factorcode.org/content/vocab-alien.data.map.html"><tt>data-map</tt></a>. It can take objects of any of Factor's packed binary array types as inputs and map over their contents from any C type to any other C type. You can also grab input values in groups and map them to groups of output values. This makes it easy to express tricky vector operations that would be tough or impossible to trick a C compiler into auto-vectorizing. Here's an example that packs an array of floating-point pixel values into byte-sized pixel values:</p>
+<pre>
+USING: alien.c-types alien.data.map generalizations kernel
+math.vectors math.vectors.conversion math.vectors.simd
+specialized-arrays typed ;
+SIMDS: float int short uchar ;
+SPECIALIZED-ARRAYS: float float-4 uchar-16 ;
+IN: scratchpad
+
+TYPED: float-pixels&gt;byte-pixels ( floats: float-array -- bytes: byte-array )
+    [
+        [ 255.0 v*n float-4 int-4 vconvert ] 4 napply
+        [ int-4 short-8 vconvert ] 2bi@
+        short-8 uchar-16 vconvert
+    ] data-map( float-4[4] -- uchar-16 ) ;
+</pre>
+<p>The above code grabs four <tt>float-4</tt> vectors at a time from the input array and crams them into one <tt>uchar-16</tt> vector, first scaling the four inputs from <tt>0.0</tt>&ndash;<tt>1.0</tt> to <tt>0</tt>&ndash;<tt>255</tt> (<tt>255.0 v*n float-4 int-4 vconvert</tt>), then packing both pairs of <tt>int</tt> vectors into two <tt>short</tt> vectors (<tt>int-4 short-8 vconvert</tt>), and finally packing the two <tt>short</tt> vectors into a single <tt>uchar</tt> vector. The machine instruction that the <tt>vconvert</tt> operation maps to handles saturating values below <tt>0</tt> and above <tt>255</tt> for us.
+</p>
+<p><tt>data-map</tt> can also iterate over multiple input arrays in parallel. Here's another pixel-pushing example that folds planar R, G, B, and A data into a single RGBA image:</p>
+<pre>
+USING: alien.c-types alien.data.map kernel locals
+math.vectors math.vectors.simd specialized-arrays typed ;
+SIMDS: uchar ;
+SPECIALIZED-ARRAYS: uchar-16 ;
+IN: scratchpad
+
+:: vmerge-transpose ( a b c d -- ac bd ac bd )
+    a c (vmerge) b d (vmerge) ; inline
+
+TYPED: RGBA-planes&gt;RGBA (
+    r: byte-array
+    g: byte-array
+    b: byte-array
+    a: byte-array
+    --
+    rgba: byte-array
+)
+    [ vmerge-transpose vmerge-transpose ]
+    data-map( uchar-16 uchar-16 uchar-16 uchar-16 -- uchar-16[4] ) ;
+</pre>
+<p>The <tt>(vmerge)</tt> function maps to SIMD instructions that interleave the contents of two vectors. By applying it twice to our four input vectors we get four interleaved vectors we can store to the destination buffer.</p>
+<p><tt>data-map</tt> still has some shortcomings. All the above examples assume that the input arrays are an evenly divisible size of the input grouping. <tt>data-map</tt> does nothing to deal with the tail end; currently, you'd need to find and handle it yourself. <tt>data-map</tt> also doesn't offer a solution for iterating over potentially misaligned subsequences of packed arrays, where you would also want to handle the unaligned head of the incoming slice separately before passing the aligned part the vectorized main loop. However, as is, it's been useful enough to accelerate the <a href="http://duriansoftware.com/joe/The-Factor-game-framework.html">terrain generation demo</a> from needing a five-second warmup to starting nearly instantly. As I try to apply it to more complex problems, I'll be tweaking the design to make it more general.</p>
+<h3><center>&#x273b; &nbsp; &#x273c; &nbsp; &#x273b;</center></h3>
+<p>
+Of course, Factor is still primarily a dynamic language, and it does nothing to stop you from slipping a type-opaque function call into your inner loop and kicking its performance down from C++ to Python levels. It still takes some arcane knowledge of the compiler's abilities to get it to generate fast code. But having typed function definitions, a rich set of object types that map to CPU types, and control flow constructs that work with typed data makes Factor's fast path a lot easier to access.
+</p>
+
+</div>
+
+<div class="cleared"></div>
+<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
+<br><a class="archives" href="archives.html">Archives</a>
+
+<div style="clear:both"></div>
+</div>
+
+<div class="fineprint">
+&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
+</div>
+</body>
+</html>
