@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>Improving Factor's error messages</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/Improving-Factor&apos;s-error-messages.html">Improving Factor's error messages</a></h3>
-<h4>updated March 13, 2010 01:38:57 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>Improving Factor's error messages</h1>
+<div class=date>March 13, 2010</div>
 <p>
 For all its amazing features, Factor has awful error reporting. This is probably because reporting good error messages is not as sexy as performance tuning or writing new libraries, but nonetheless, error reporting is a huge, important part of a development environment's user experience. Just look at all the excitement over <a href="http://fseek.me/img/clang.png">Clang giving better error messages than GCC.</a> Factor's still a ways away from correcting spelling errors, but I did spend some time improving its error reporting in two particularly deficient areas: its reporting of syntax errors, and its handling of stack management errors. The nerdy details are below; the gist is: if you've tried Factor before and given up on it because of its opaque error messages, now's a great time to give it another shot. Or if you've stuck with Factor despite its Gen-X apathy toward invalid code, enjoy the monkey that just got pulled off your back.
 </p>
@@ -170,17 +145,12 @@ Input    Expected           Got
 Inlined higher-order functions are allowed a bit more leeway in how much stack they use and leave behind, as long as they leave the stack balanced across any loops or branches they set up. (This allows for things like "reduce" being implemented in terms of "each", by taking its accumulator as an extra input and leaving the updated value as an extra output.) The "...", "..a", and "..b" in those "Expected" columns are "row variables" that represent a number of values taken as inputs or outputs that has to be consistent among the stack effects using the same variable name. Read the <a href="http://docs.factorcode.org/content/article-effects-variables.html">Factor help article</a> about them for the details.
 </p>
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>

@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>The Factor game framework</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/The-Factor-game-framework.html">The Factor game framework</a></h3>
-<h4>updated May 11, 2009 11:32:03 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>The Factor game framework</h1>
+<div class=date>May 11, 2009</div>
 <p>For kicks, I felt like taking a couple weeks and trying to write some game infra&shy;structure in <a href="http://factorcode.org/">Factor</a>. You can see some of my handiwork in the <tt>terrain</tt> demo I recently threw together. If you have an OpenGL 2.0-capable graphics card, download a recent Factor build for Windows or Mac and run from the listener:</p>
 <pre>"terrain" run</pre>
 <p>(X11 isn't supported by some of the libraries yet.) Wait a few seconds and you should see this:</p>
@@ -56,17 +31,12 @@
 <p>The terrain demo itself is very basic too; it only generates one small segment of terrain, and the Perlin noise code I wrote takes much longer than it should to generate segments. Shortcomings aside, Factor's a lot of fun to work with. The FFI makes binding to system libraries trivial. Its code is well-compartmentalized, and even old, relatively crusty code like the UI internals is easy to work with and add features to. I don't think any of the problems above are going to be hard to fix over time.</p>
 
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>

@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>Get your RAII on with the finally template class</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/Get-your-RAII-on-with-the-finally-template-class.html">Get your RAII on with the finally template class</a></h3>
-<h4>updated March 31, 2009 15:56:58 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>Get your RAII on with the finally template class</h1>
+<div class=date>March 31, 2009</div>
 <p>
 C++'s destructors are great for ensuring that resources get cleaned up at the end of a scope, but writing wrapper classes for every damn C library type you use gets tired real quick. <a href="http://factorcode.org/slava/">Slava</a> suggested that I write a template class to do it once, so guess what? I did. 
 </p>
@@ -74,17 +49,12 @@ Because <tt>finally</tt> uses <a href="http://www.boost.org/doc/libs/1_38_0/doc/
 boost::shared_ptr&lt;FILE&gt; pf(fopen("foo", "r"), fclose);
 </pre>
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>

@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>An intro to modern OpenGL. Chapter 3: 3D transformation and projection</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html">An intro to modern OpenGL. Chapter 3: 3D transformation and projection</a></h3>
-<h4>updated July 14, 2010 15:34:17 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>An intro to modern OpenGL. Chapter 3: 3D transformation and projection</h1>
+<div class=date>July 14, 2010</div>
 <h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">&laquo; Chapter 2.3</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html">Chapter 4 &raquo;</a></h4>
 <p>
 The GPU's specialty, and by extension OpenGL's, is in rendering three-dimensional scenes. If you compare <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">last chapter</a>'s <tt>hello-gl</tt> program to, say, Crysis, you might notice that our demo is missing one of those dimensions (among other things). In this chapter, I'm going to fix that. We'll cover the basic math that makes <span class="smallcap">3d</span> rendering happen, looking at how <b>transformations</b> are done using <b>matrices</b> and how <b>perspective projection</b> works. Wikipedia does a great job going in-depth about the algorithmic details, so I'm going to spend most of my time talking at a high level about what math we use and why, linking to the relevant Wikipedia articles if you're interested in exploring further. As we look at different transformations, we're going to take the vertex shader from last chapter and extend it to implement those transformations, animating the "hello world" image by moving its rectangle around in <span class="smallcap">3d</span> space.
@@ -419,17 +394,12 @@ Matrix multiplication is by far the most common operation in a <span class="smal
 </p>
 <h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">&laquo; Chapter 2.3</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html">Chapter 4 &raquo;</a></h4>
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>

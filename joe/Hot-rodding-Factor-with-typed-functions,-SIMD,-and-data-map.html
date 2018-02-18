@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>Hot-rodding Factor with typed functions, SIMD, and data-map</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/Hot-rodding-Factor-with-typed-functions,-SIMD,-and-data-map.html">Hot-rodding Factor with typed functions, SIMD, and data-map</a></h3>
-<h4>updated October 19, 2009 21:00:44 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>Hot-rodding Factor with typed functions, SIMD, and data-map</h1>
+<div class=date>October 19, 2009</div>
 <p>
 Factor's gained a number of features and libraries recently to help it deal efficiently with large sets of binary data.
 </p>
@@ -187,17 +162,12 @@ TYPED: RGBA-planes&gt;RGBA (
 Of course, Factor is still primarily a dynamic language, and it does nothing to stop you from slipping a type-opaque function call into your inner loop and kicking its performance down from C++ to Python levels. It still takes some arcane knowledge of the compiler's abilities to get it to generate fast code. But having typed function definitions, a rich set of object types that map to CPU types, and control flow constructs that work with typed data makes Factor's fast path a lot easier to access.
 </p>
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>

@@ -1,36 +1,11 @@
 <!DOCTYPE html>
-<html>
-<head>
 <title>An intro to modern OpenGL. Chapter 2.2: Shaders</title>
-<link rel="stylesheet" href="../durians.css">
-<link rel="alternate" type="application/rss+xml" title="Durian Software: Joe's Blog" href="index.rss">
-<script src="../durians.js"></script>
-</head>
-<body class="blog">
-<div class="subtitle"><a href="index.html">Joe's blog</a></div>
-<a href="../index.html"><img class="marquee" src="../durians.png"></a>
-<div class="content">
-
-<div class="sidebar">
-<h4>About Me</h4>
-<p>My name's Joe Groff. I'm a programmer in Portland, Oregon, USA.<br>
-<br><script>male_to('com', 'joe', 'duriansoftware')</script>
-<br>twitter <a href="http://twitter.com/jckarter">@jckarter</a>
-<br>github <a href="http://github.com/jckarter">jckarter</a>
-</p>
-<h4>My Friends</h4>
-<p>
-<a href="http://bugsplat.info/">Peter Keen</a><br>
-<a href="http://leto.net/">Jonathan Leto</a><br>
-<a href="http://factor-language.blogspot.com/">Slava Pestov</a><br>
-<a href="http://www.kssreeram.org/">KS Sreeram</a><br>
-<a href="http://profile.myspace.com/index.cfm?fuseaction=user.viewprofile&friendid=189198983">The Summer Darlings</a>
-</p>
-</div>
-
-<div class="blog">
-<h3><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html">An intro to modern OpenGL. Chapter 2.2: Shaders</a></h3>
-<h4>updated April 5, 2010 17:29:36 PDT</h4>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<h1>An intro to modern OpenGL. Chapter 2.2: Shaders</h1>
+<div class=date>April 5, 2010</div>
 <h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">&laquo; Chapter 2.1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">Chapter 2.3 &raquo;</a></h4>
 <p>
 <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">Buffers and textures</a> contain the raw materials for an OpenGL program, but without shaders, they are inert lumps of bytes. If you recall from our overview of the <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html#gl1-pipeline">graphics pipeline</a>, rendering requires a vertex shader, which maps our vertices into screen space, and a fragment shader, which colors in the rasterized fragments of the resulting triangles. Shaders in OpenGL are written in a language called GLSL (GL Shading Language), which looks a lot like C. In this article, we'll lay out the shader code for our <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html">"hello world" program</a> and then write the C code to load, compile, and link it into OpenGL.
@@ -229,17 +204,12 @@ static int make_resources(void)
 <p>I know I've left you hanging these last couple parts without a complete, working program to run. I'll fix that in the next and final part of this chapter, when we write the code that will actually set the graphics pipeline in motion and render our scene.</p>
 <h4><a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html">&laquo; Chapter 2.1</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html">Table of Contents</a> | <a href="http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html">Chapter 2.3 &raquo;</a></h4>
 
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
 </div>
-
-<div class="cleared"></div>
-<br><script>male_to('com', 'joe', 'duriansoftware', 'Email me')</script>
-<br><a class="archives" href="archives.html">Archives</a>
-
-<div style="clear:both"></div>
-</div>
-
-<div class="fineprint">
-&copy; 2012 Durian Software. | <a href="../contact.html">Contact Us</a>
-</div>
-</body>
-</html>
