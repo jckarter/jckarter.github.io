@@ -9,8 +9,6 @@
 <title>Optimizing global constant data structures using relative references</title>
 <link>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</link>
 <description>
-&lt;title&gt;Optimizing compiler-generated global constant data structures using relative references&lt;/title&gt;
-
 Building a native compiler for a programming language with rich reflection? Runtime type information, method dispatch tables, and other metadata require complex data structures full of cross references between related language entities. To reduce the size, memory usage, and launch time cost of these pointer-heavy constant data structures, you can try building them out of &lt;b&gt;relative references&lt;/b&gt; instead of pointers. Pointers are one of C&#39;s defining features, and seemingly the simplest mechanism for building data structures, but they carry hidden costs when used in global constants, which we&#39;ll explore in this post and look at how we can avoid them. Even if you&#39;re not writing a compiler, understanding this optimization is a fun chance to peel back some of the mystique of C, explore a bit of the runtime machinery that makes C programs work in contemporary operating systems, and see how a compiler can make different tradeoffs when not constrained by the abstractions C provides. Most of what I&#39;ll describe here applies specifically to macOS, iOS, and Apple&#39;s other platforms, although ELF-based operating systems like Linux and FreeBSD on x86 work largely the same way. (Windows dynamic linking is very different in many ways, though this optimization still has benefits there.)
 
 &lt;h3&gt;The hidden costs of global pointers&lt;/h3&gt;
@@ -285,7 +283,7 @@ For some examples of data structures using relative references being used in pra
 
 </description>
 <dc:creator>Joe Groff</dc:creator>
-<dc:date>2018-02-17T16:39:53+00:00</dc:date>
+<dc:date>2018-02-18T02:39:36+00:00</dc:date>
 <guid>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</guid>
 </item>
 <item>

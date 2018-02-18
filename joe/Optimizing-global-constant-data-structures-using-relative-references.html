@@ -7,11 +7,9 @@
 <meta name=twitter:card content=summary>
 <meta name=twitter:site content=@jckarter>
 <meta name=twitter:title content="Optimizing global constant data structures using relative references">
-<meta name=twitter:description content="Optimizing compiler-generated global constant data structures using relative references Building a native compiler for a programming language with rich reflection? Runtime type information, method dis&hellip;">
+<meta name=twitter:description content="Building a native compiler for a programming language with rich reflection? Runtime type information, method dispatch tables, and other metadata require complex data structures full of cross reference&hellip;">
 <h1>Optimizing global constant data structures using relative references</h1>
 <div class=date>February 17, 2018</div>
-<title>Optimizing compiler-generated global constant data structures using relative references</title>
-
 Building a native compiler for a programming language with rich reflection? Runtime type information, method dispatch tables, and other metadata require complex data structures full of cross references between related language entities. To reduce the size, memory usage, and launch time cost of these pointer-heavy constant data structures, you can try building them out of <b>relative references</b> instead of pointers. Pointers are one of C's defining features, and seemingly the simplest mechanism for building data structures, but they carry hidden costs when used in global constants, which we'll explore in this post and look at how we can avoid them. Even if you're not writing a compiler, understanding this optimization is a fun chance to peel back some of the mystique of C, explore a bit of the runtime machinery that makes C programs work in contemporary operating systems, and see how a compiler can make different tradeoffs when not constrained by the abstractions C provides. Most of what I'll describe here applies specifically to macOS, iOS, and Apple's other platforms, although ELF-based operating systems like Linux and FreeBSD on x86 work largely the same way. (Windows dynamic linking is very different in many ways, though this optimization still has benefits there.)
 
 <h3>The hidden costs of global pointers</h3>
