@@ -7,6 +7,7 @@
 <meta name=twitter:card content=summary>
 <meta name=twitter:site content=@jckarter>
 <meta name=twitter:title content="Tracking VFP registers when debugging with iPhone gdb">
+<meta name=twitter:description content="Apple's gdb for iPhone has a pretty stupid bug: If you ask it for the value of a floating-point register, it always gives you zero. This is a huge pain in the ass when you're tricking out your inner l&hellip;">
 <h1>Tracking VFP registers when debugging with iPhone gdb</h1>
 <div class=date>March 9, 2009</div>
 <p>Apple's gdb for iPhone has a pretty stupid bug: If you ask it for the value of a floating-point register, it always gives you zero. This is a huge pain in the ass when you're tricking out your inner loops with VFP assembly and don't know where you're getting your registers mixed up. To get around this, I wrote a function to dump the VFP state:</p>
