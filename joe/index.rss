@@ -7,7 +7,7 @@
 <language>en-us</language>
 <item>
 <title>Optimizing global constant data structures using relative references</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</link>
+<link>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</link>
 <description>
 &lt;title&gt;Optimizing compiler-generated global constant data structures using relative references&lt;/title&gt;
 
@@ -286,11 +286,11 @@ For some examples of data structures using relative references being used in pra
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2018-02-17T16:39:53+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</guid>
+<guid>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</guid>
 </item>
 <item>
 <title>Self-aware struct-like types in C++11</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/Self-aware-struct-like-types-in-C++11.html</link>
+<link>http://duriansoftware.com/joe/Self-aware-struct-like-types-in-C++11.html</link>
 <description>
 &lt;p&gt;
 Even with C++11, C++ offers inadequate metaprogramming facilities for user-defined types compared
@@ -531,11 +531,11 @@ approaches to enabling composite type metaprogramming in C++.
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2012-07-05T18:49:30+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/Self-aware-struct-like-types-in-C++11.html</guid>
+<guid>http://duriansoftware.com/joe/Self-aware-struct-like-types-in-C++11.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 4: Rendering a Dynamic 3D Scene with Phong Shading</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html&quot;&gt;&amp;laquo; Chapter 3&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;At this point, we&#39;ve seen the most important core parts of the OpenGL API and gotten a decent taste of the GLSL language. Now&#39;s a good time to start exercising OpenGL and implementing some graphic effects, introducing new nuances and specialized features of OpenGL and GLSL as we go. For the next few chapters, I&#39;ve prepared a new demo program you can get from my Github &lt;a href=&quot;http://github.com/jckarter/ch4-flag&quot;&gt;&lt;tt&gt;ch4-flag&lt;/tt&gt; repository&lt;/a&gt;. The &lt;tt&gt;flag&lt;/tt&gt; demo renders a waving flag on a flagpole against a simple background:
@@ -876,11 +876,11 @@ There are other effects that can be performed by messing with the &lt;tt&gt;warp
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-07-15T15:06:09+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 3: 3D transformation and projection</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html&quot;&gt;&amp;laquo; Chapter 2.3&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-4:-Rendering-a-Dynamic-3D-Scene-with-Phong-Shading.html&quot;&gt;Chapter 4 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;
@@ -1273,11 +1273,11 @@ Matrix multiplication is by far the most common operation in a &lt;span class=&q
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-07-14T22:34:17+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Table of Contents</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html</link>
 <description>
 &lt;p&gt;
 To make it easier for people jumping into my OpenGL tutorial from the middle, I&#39;m going to keep this post up to date with the new articles as I post them.
@@ -1297,11 +1297,11 @@ To make it easier for people jumping into my OpenGL tutorial from the middle, I&
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-07-14T22:33:27+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL, in Chinese</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL,-in-Chinese.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL,-in-Chinese.html</link>
 <description>
 &lt;p&gt;
 &lt;a href=&quot;http://blog.csdn.net/kangsongrui/&quot;&gt;Kang Songrui&lt;/a&gt; is in the process of translating my &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;intro to modern OpenGL&lt;/a&gt; articles to Chinese. He recently posted his translation of the &lt;a href=&quot;http://blog.csdn.net/kangsongrui/archive/2010/04/25/5527508.aspx&quot;&gt;first chapter&lt;/a&gt;.
@@ -1313,11 +1313,11 @@ As for chapter 4 of the English tutorial, rest assured it&#39;s coming. I&#39;ve
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-26T02:25:51+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL,-in-Chinese.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL,-in-Chinese.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 2.1: Buffers and Textures</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html&quot;&gt;&amp;laquo; Chapter 2&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html&quot;&gt;Chapter 2.2 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;
@@ -1482,11 +1482,11 @@ We now have our vertex and image data prepped and ready to launch through the gr
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-25T20:17:27+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 2.3: Rendering</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html&quot;&gt;&amp;laquo; Chapter 2.2&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-3:-3D-transformation-and-projection.html&quot;&gt;Chapter 3 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;
@@ -1612,11 +1612,11 @@ nmake /f Nmakefile.Windows
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-25T20:13:38+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 2: Hello World: The Slideshow</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html&quot;&gt;&amp;laquo; Chapter 1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;Chapter 2.1 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;
@@ -1757,11 +1757,11 @@ With the red tape of getting a window open out of the way, we&#39;re ready to ac
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-19T08:03:35+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</guid>
 </item>
 <item>
 <title>An intro to modern OpenGL. Chapter 2.2: Shaders</title>
-<link>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</link>
+<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</link>
 <description>
 &lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;&amp;laquo; Chapter 2.1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html&quot;&gt;Chapter 2.3 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
 &lt;p&gt;
@@ -1964,7 +1964,7 @@ static int make_resources(void)
 </description>
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-06T00:29:36+00:00</dc:date>
-<guid>file:///Users/joe/Documents/Code/duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</guid>
+<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</guid>
 </item>
 
 </channel>
