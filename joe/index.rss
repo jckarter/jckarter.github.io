@@ -32,10 +32,9 @@ const struct object_vtable {
 And it&#39;s easy to believe this is the only way, since C is the &quot;bare metal&quot; language, and these are the tools C gives you to represent these kinds of data structures. The &lt;tt&gt;object_vtable&lt;/tt&gt; structure here is a global constant, full of pointers to other global constants&amp;mdash;it should be &quot;free&quot;, right? In reality, operating systems provide a fairly elaborate runtime environment in order to make C programs work. Data structures that contain global pointers will in fact allocate memory at program launch before even entering &lt;tt&gt;main()&lt;/tt&gt;. To understand why, we need to peek behind the scenes and look at how the dynamic linker works.
 
 &lt;p&gt;
-When a process is formed, the contents of the executable file and all of the dynamic libraries it uses get memory-mapped into the new process&#39;s address space by the dynamic linker. The dynamic linker uses the kernel&#39;s memory mapping feature to do this, associating regions of memory with the contents of the binary files on disk. As long as this memory isn&#39;t changed by the running program, the kernel can consider it to be &quot;clean&quot;, so that if the system needs to free up memory for other purposes, it can discard these clean pages and reload them from the original binary later, since they haven&#39;t been changed. Furthermore, if multiple processes launch using the same executable or dynamic libraries, the exact same clean memory pages can be shared across the addresses of all of those different processes, significantly reducing the amount of memory needed by the entire system.
-
+When a process is formed, the contents of the executable file and all of the dynamic libraries it uses get memory-mapped into the new process&#39;s address space by the dynamic linker. The dynamic linker uses the kernel&#39;s memory mapping feature to do this, associating regions of memory with the contents of the binary files on disk. As long as this memory isn&#39;t changed by the running program, the kernel can consider it to be &quot;clean&quot;, so that if the system needs to free up memory for other purposes, it can discard these clean pages and reload them from the original binary later, since they haven&#39;t been changed. Furthermore, if multiple processes launch using the same executable or dynamic libraries, the exact same clean memory pages can be shared across the address spaces of all of those different processes, significantly reducing the amount of memory needed by the entire system.
 &lt;p&gt;
-However, for a number of reasons, the code and data in a binary on disk can&#39;t know for certain what memory address it&#39;s going to end up getting mapped to in a running process. Every executable can link against any set of dynamic libraries, so a dynamic library may have to rebase to make room for other libraries in the process. Also, as a layer of security, operating systems use &lt;b&gt;address space layout randomization&lt;/b&gt;, or ASLR, so that if a program gets exploited, attacker code can&#39;t make static assumptions about the location of other exploitable resources in the program&#39;s memory, making exploits harder to write. Because the binary on disk doesn&#39;t know what address it&#39;s going to be mapped to, when pointers appear in its global data, the dynamic linker has to &lt;b&gt;slide&lt;/b&gt; all of those pointers to their correct values for the process. This sliding has to happen when the program is loaded, before entering &lt;tt&gt;main&lt;/tt&gt;, delaying the launch of the program. It also causes the pages those pointers are on to become &quot;dirty&quot; from the kernel&#39;s perspective, causing the system to use more memory: dirty pages can&#39;t be shared among different processes, since the pointer values may be different in each process, and since they no longer match the contents of the binary on disk, they can no longer be merely discarded if the system needs to free up memory for other uses; dirty pages instead have to be written and reloaded from swap.
+However, for a number of reasons, the code and data in a binary on disk can&#39;t know for certain what memory address it&#39;s going to end up getting mapped to in a running process. Every executable can link against any set of dynamic libraries, so a dynamic library may have to &lt;b&gt;rebase&lt;/b&gt; to make room for other libraries in the process, sliding to a new base address. Additionally, as a layer of security, operating systems use &lt;b&gt;address space layout randomization&lt;/b&gt;, or ASLR, so that if a program gets exploited, attacker code can&#39;t make static assumptions about the location of other exploitable resources in the program&#39;s memory, making exploits harder to write. Because the binary on disk doesn&#39;t know what address it&#39;s going to be mapped to, when pointers appear in its global data, the dynamic linker has to &lt;b&gt;slide&lt;/b&gt; all of those pointers to their correct values for the process. This sliding has to happen when the program is loaded, before entering &lt;tt&gt;main&lt;/tt&gt;, delaying the launch of the program. It also causes the pages those pointers are on to become &quot;dirty&quot; from the kernel&#39;s perspective, causing the system to use more memory: dirty pages can&#39;t be shared among different processes, since the pointer values may be different in each process, and since they no longer match the contents of the binary on disk, they can no longer be merely discarded if the system needs to free up memory for other uses; dirty pages instead have to be written and reloaded from swap.
 
 &lt;p&gt;
 I wrote a &lt;a href=&quot;https://gist.github.com/jckarter/e134a24123d4db7cc68cf2890389f644&quot;&gt;small C program for macOS&lt;/a&gt; to observe the impact of global pointers on memory usage and program launch time. This program measures the current time and then spawns another copy of itself, which measures the time immediately after entering &lt;tt&gt;main&lt;/tt&gt; and reports the time difference in nanoseconds. The program also accepts a &lt;tt&gt;-stop&lt;/tt&gt; argument, which will cause the process to suspend itself immediately after reporting its launch time, allowing us to inspect its memory usage after entering &lt;tt&gt;main&lt;/tt&gt;. We can build it in three variants:
@@ -66,7 +65,22 @@ I ran each variant a thousand times on my computer, a 3.1GHz 2017 15&quot; MacBo
 &lt;b&gt;1712659&lt;/b&gt;
 &lt;/pre&gt;
 
-We can see that the global pointers in the &lt;tt&gt;pointer_class_records&lt;/tt&gt; variant have a small but measurable impact on its launch time&amp;mdash;about 0.2 milliseconds, or a 13% increase over the baseline launch time of 1.5 milliseconds. If I run each variant with the &lt;tt&gt;-stop&lt;/tt&gt; flag, and inspect the stopped processes&#39; memory usage, I see something like this:
+We can see that the global pointers in the &lt;tt&gt;pointer_class_records&lt;/tt&gt; variant have a small but measurable impact on its launch time&amp;mdash;about 0.2 milliseconds, or a 13% increase over the baseline launch time of 1.5 milliseconds. We can also ask &lt;tt&gt;dyld&lt;/tt&gt;, the dynamic linker on macOS, to break down all the work it does at process launch by setting the environment variable &lt;tt&gt;DYLD_PRINT_STATISTICS_DETAILS&lt;/tt&gt;. On my machine, running the &lt;tt&gt;no_class_records&lt;/tt&gt; and &lt;tt&gt;pointer_class_records&lt;/tt&gt; variants with &lt;tt&gt;DYLD_PRINT_STATISTICS_DETAILS&lt;/tt&gt; enabled produces the following output:
+&lt;pre&gt;
+&lt;b&gt;$&lt;/b&gt; ./no_class_records
+  ...
+  &lt;b&gt;total rebase fixups:  14
+  total rebase fixups time:   0.48 milliseconds (23.4%)&lt;/b&gt;
+  ...
+&lt;b&gt;$&lt;/b&gt; ./pointer_class_records
+  ...
+  &lt;b&gt;total rebase fixups:  32,783
+  total rebase fixups time:   1.62 milliseconds (50.8%)&lt;/b&gt;
+  ...
+&lt;/pre&gt;
+Among all the other measurements &lt;tt&gt;dyld&lt;/tt&gt; reports, the &quot;total rebase fixups&quot; measurement makes the difference between &lt;tt&gt;no_class_records&lt;/tt&gt; and &lt;tt&gt;pointer_class_record&lt;/tt&gt; plain. The latter has exactly 32K more pointers to rebase than the baseline, accounting for most of the difference in startup time between the two variants.
+&lt;p&gt;
+Now let&#39;s look at the memory impact of these rebases. If I run each variant with the &lt;tt&gt;-stop&lt;/tt&gt; flag, and inspect the stopped processes&#39; memory usage in &lt;tt&gt;top&lt;/tt&gt;, I see something like this:
 
 &lt;pre&gt;
 &lt;b&gt;$&lt;/b&gt; ./no_class_records -stop
@@ -99,7 +113,7 @@ We can see that the &lt;tt&gt;no_class_records&lt;/tt&gt; and &lt;tt&gt;non_poin
 
 How can we represent these reference-heavy data structures in a way that doesn&#39;t pay the load time and dirty page costs of global pointers? For inspiration, we can look at how compilers emit &lt;b&gt;position-independent code&lt;/b&gt;, or PIC, which is machine code that behaves the same way regardless of where it&#39;s loaded in memory. Machine code is full of references to represent branches, function calls, and reads or writes of global variables. Most contemporary CPU instruction sets let these operations be represented with &lt;b&gt;PC-relative addressing&lt;/b&gt; (&quot;PC&quot; being short for &quot;program counter&quot;, the address of the currently-executing instruction), meaning the thing being referenced is named by its &lt;b&gt;relative offset&lt;/b&gt; from the current instruction rather than by a pointer to its absolute address. Whereas absolute pointers change values when the binary gets mapped into memory at a different base address, the relative distances between data structures within the binary do not.
 &lt;p&gt;
-We can make data structures position-independent the same way code does, by having structures reference other binaries by their distance from each other within the binary instead of by their absolute addresses. For example, the &lt;tt&gt;object_vtable&lt;/tt&gt; from the beginning of the article could look something like this instead:
+We can make data structures position-independent the same way code does, by having structures reference other structures by their distance from each other within the binary instead of by their absolute addresses. For example, the &lt;tt&gt;object_vtable&lt;/tt&gt; from the beginning of the article could look something like this instead:
 
 &lt;pre&gt;
 #define OFFSET(target, source) \
@@ -283,7 +297,7 @@ For some examples of data structures using relative references being used in pra
 
 </description>
 <dc:creator>Joe Groff</dc:creator>
-<dc:date>2018-02-18T02:39:36+00:00</dc:date>
+<dc:date>2018-02-22T04:06:37+00:00</dc:date>
 <guid>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</guid>
 </item>
 <item>
