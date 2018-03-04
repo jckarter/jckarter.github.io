@@ -1,6 +1,6 @@
-body { max-width:900px; margin:auto; padding:0 15px; font-family:Palatino, Cambria, Times, sans-serif; line-height:140%; font-size:110% }
+body { max-width:900px; margin:auto; padding:0 15px; font-family:Palatino, Cambria, Times, serif; line-height:140%; font-size:110% }
 h1 { margin:1em 0 0.5em 0; line-height:120% }
-h1, h2, h3, h4, .date, .footer { font-family:-apple-system, Calibri, Helvetica, Arial, serif; font-weight:600 }
+h1, h2, h3, h4, .date, .footer { font-family:-apple-system, Helvetica, Calibri, Arial, serif; font-weight:600 }
 p { line-height:150% }
 .date { font-size:90%; color:#223; margin:0 0 2em 0 }
 
