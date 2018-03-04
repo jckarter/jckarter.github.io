@@ -6,6 +6,94 @@
 <description>Joe's blog.</description>
 <language>en-us</language>
 <item>
+<title>Constructing human-grade parsers</title>
+<link>http://duriansoftware.com/joe/Constructing-human-grade-parsers.html</link>
+<description>
+Parsing is one of the most thoroughly explored topics in computer science, but building parsers that give high-quality diagnostics and user feedback is still largely folk art. Here are some observations on how parsers can be constructed in a way that makes it easier to recover from parse errors, produce multiple diagnostics in one pass, and provide partial results for further analysis even in the face of errors, providing a better experience for user-driven command line tools and interactive environments.
+&lt;p&gt;
+In the traditional conception of a parser, there&#39;s a grammar, there are strings that do or don&#39;t match the grammar, and there are actions to take in response to inputs that match the grammar, but little attention is often paid to what to do with inputs that don&#39;t match. Most of us have probably encountered a tool that produces obtuse, grammar-oriented errors of the &quot;&lt;tt&gt;expected &#39;;&#39; or &#39;∑&#39; or &#39;blörp&#39;&lt;/tt&gt;&quot; sort.  Diagnostic quality aside, when a tool only produces one error at a time like this, the user has to go through a tedious loop of fixing one error, re-running the tool, fixing the next error, and so on, until they get a successful parse. Stopping parsing on erroring is the right thing to do when non-user-facing parsers for things like serialization and wire protocols encounter strings that don&#39;t match their grammar, but for tools that work with text that gets directly edited by human beings, like source code and configuration files, parse errors are much more likely, and working with a naive parser that can only report localized parse errors one at a time quickly gets irritating. A tool is much more user friendly if each run produces as many diagnostics as possible in one run, allowing the user to fix them all in one editing pass and have a higher likelihood of a successful run next time. For a user-facing tool, &lt;b&gt;parse errors should be recoverable&lt;/b&gt; and the parser should be able to keep going to collect multiple errors.
+
+&lt;p&gt;
+Programming language compilers also usually run multiple passes over their input. After parsing, compilers perform type checking and other semantic analysis on the parse result to check additional invariants. In order to maximize the diagnostic coverage a compiler can achieve in a single pass, &lt;b&gt;parsing should be able to produce partial output&lt;/b&gt; even in the face of errors, so that analysis passes after parsing can process the well-formed parts of the file. This is important for maximizing diagnostic coverage when running a compiler from the commandline, but it&#39;s even more critical when a compiler is used interactively as part of an IDE. When a user is actively editing a source file, the compiler is going to constantly be exposed to inconsistent states, but the user is going to expect to still get accurate information about the parts of the file they aren&#39;t actively editing. Features like code completion especially need to be able to use semantic information from the well-formed parts of a file in order to assist editing the incomplete parts.
+
+&lt;p&gt;
+So we want to build parsers that can recover from parse errors and produce partial output with the well-formed parts. Thinking about it a different way, we want &lt;b&gt;parsing to always succeed&lt;/b&gt; at producing some kind of structured result. The result can contain error nodes inside it, but the error nodes don&#39;t have to replace the entire result. How do we make a parser that always succeeds, and how exactly do we recover when we find a parse error? We can look at both problems from the perspective of designing the grammar. Effectively, we want to take a grammar and extend it to make it &lt;b&gt;total&lt;/b&gt;, so that every string matches a rule, by adding rules for erroneous inputs.
+
+&lt;p&gt;
+Doing this well is an art, and requires some human judgment and iteration to get the best results. To get an idea of how we might go about it, let&#39;s consider a toy example. We&#39;ll look at a language for arithmetic expressions, with the basic operators &quot;&lt;tt&gt;+&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;-&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;*&lt;/tt&gt;&quot;, and &quot;&lt;tt&gt;/&lt;/tt&gt;&quot;, where &quot;&lt;tt&gt;*&lt;/tt&gt;&quot; and &quot;&lt;tt&gt;/&lt;/tt&gt;&quot; bind more tightly than &quot;&lt;tt&gt;+&lt;/tt&gt;&quot; and &quot;&lt;tt&gt;-&lt;/tt&gt;&quot;, and parentheses &quot;&lt;tt&gt;()&lt;/tt&gt;&quot; can be used to group expressions against their normal precedence. The grammar might look something like this in EBNF:
+
+&lt;pre&gt;
+expr ::= mul-expr (add-op mul-expr)*
+mul-expr ::= term (mul-op term)*
+term ::= number | &#39;(&#39; expr &#39;)&#39;
+add-op ::= &#39;+&#39; | &#39;-&#39;
+mul-op ::= &#39;*&#39; | &#39;/&#39;
+number ::= add-op? [0-9]+
+&lt;/pre&gt;
+
+This grammar matches strings like &quot;&lt;tt&gt;1+(2-3)*4/5&lt;/tt&gt;&quot;, but let&#39;s consider what kinds of strings it doesn&#39;t match, and what the user likely meant if they entered a nonmatching string. First of all, the user could have entered a character that doesn&#39;t appear in the grammar at all. The grammar only includes the digits &quot;&lt;tt&gt;0&lt;/tt&gt;&quot; through &quot;&lt;tt&gt;9&lt;/tt&gt;&quot;, the operators &quot;&lt;tt&gt;+&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;-&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;*&lt;/tt&gt;&quot;, and &quot;&lt;tt&gt;/&lt;/tt&gt;&quot;, and the parens &quot;&lt;tt&gt;()&lt;/tt&gt;&quot;. The user may have tried to include other alphanumeric characters or other punctuation characters. We could make an educated guess that, if the user wrote an alphabetic character, they intended something number-like, or if they wrote a symbol character, they intended something operator-like. We can extend the grammar with error rules for these, so that it can match any character:
+&lt;pre&gt;
+term ::= number | &#39;(&#39; expr &#39;)&#39;
+number ::= add-op? ([0-9] | &lt;b&gt;error-alnum&lt;/b&gt;)+
+error-alnum ::= ([:Letter:] | [:Number:])+
+
+mul-op ::= &#39;*&#39; | &#39;/&#39; | &lt;b&gt;error-op&lt;/b&gt;
+error-op ::= [:Mark:] | [:Punctuation:] | [:Symbol:]
+&lt;/pre&gt;
+
+The user may also have left a token out, typing multiple operators without a number in between, a string that begins with a &quot;&lt;tt&gt;*&lt;/tt&gt;&quot; or &quot;&lt;tt&gt;/&lt;/tt&gt;&quot; operator without a number before it, a string that ends with an operator, multiple parenthesized terms without an operator between, parens without anything inside them, or mismatched parens. In any of these situations, we can parse as if the likely-to-be-missing token is there. We can add rules to the grammar like this:
+
+&lt;pre&gt;
+expr ::= mul-expr (add-op &lt;b&gt;mul-expr?&lt;/b&gt;)*         -- error if mul-expr is missing
+mul-expr ::= &lt;b&gt;term&lt;/b&gt; (mul-op? &lt;b&gt;term?&lt;/b&gt;)*            -- error if term or mul-op is missing
+           | mul-op term? (mul-op? &lt;b&gt;term?&lt;/b&gt;)*    -- error with missing first term
+term ::= number
+       | &#39;(&#39; &lt;b&gt;expr? &#39;)&#39;?&lt;/b&gt;                       -- error if empty or closing paren missing
+       | &lt;b&gt;expr? &#39;)&#39;&lt;/b&gt;                            -- error if opening paren is missing
+number ::= add-op? ([0-9] | error-alnum)+
+         | &lt;b&gt;add-op&lt;/b&gt;                             -- error with missing number after sign
+&lt;/pre&gt;
+
+The grammar can now cope with any sequence of tokens. With this grammar in hand, when we implement the parser, we can have it build a parse tree data structure with nodes for both valid and invalid productions. Without getting into the mechanicals details of the implementation, the resulting parser could behave something like this:
+
+&lt;pre&gt;
+data ArithExpr = Add ArithExpr ArithExpr    -- &#39;1 + 2&#39;
+               | Sub ArithExpr ArithExpr    -- &#39;1 - 2&#39;
+               | Mul ArithExpr ArithExpr    -- &#39;1 * 2&#39;
+               | Div ArithExpr ArithExpr    -- &#39;1 / 2&#39;
+               | Parens ArithExpr           -- &#39;(1)&#39;
+               | Num Double                 -- &#39;1.23&#39;
+               -- invalid productions:
+               | InvalidOp String ArithExpr ArithExpr -- &#39;1?2&#39; (with invalid char &#39;?&#39;)
+               | InvalidNum String                    -- &#39;xyz&#39; (with invalid char &#39;xyz&#39;)
+               | MissingOp ArithExpr ArithExpr        -- &#39;(1)(2)&#39; (no op in between)
+               | MissingNum                           -- &#39;&#39; (no number where expected)
+               | MissingOpeningParen                  -- &#39;1)&#39;
+               | MissingClosingParen                  -- &#39;(1&#39;
+
+parseArithExpr :: String -&gt; &lt;b&gt;ArithExpr&lt;/b&gt;  -- always returns an ArithExpr, no Maybe or Either
+
+parseArithExpr &quot;1+2*3&quot;    -- Add (Num 1) (Mul (Num 2) (Num 3))
+parseArithExpr &quot;(1+2)*3&quot;  -- Mul (Parens (Add (Num 1) (Num 2))) (Num 3)
+parseArithExpr &quot;1&amp;2&amp;3&quot;    -- InvalidOp &quot;&amp;&quot; (InvalidOp &quot;&amp;&quot; (Num 1) (Num 2)) (Num 3)
+parseArithExpr &quot;1+2+a/0*&quot; -- Add (Add (Num 1) (Num 2))
+                          --     (Mul (Div (&lt;b&gt;InvalidNum&lt;/b&gt; &quot;a&quot;. (Num 0)) &lt;b&gt;MissingNum&lt;/b&gt;)
+parseArithExpr &quot;4)()(5&quot;   -- &lt;b&gt;MissingOp&lt;/b&gt; (&lt;b&gt;MissingOp&lt;/b&gt; (&lt;b&gt;MissingOpeningParen&lt;/b&gt; (Num 4)) (Parens (&lt;b&gt;MissingNum&lt;/b&gt;)))
+                          --           (&lt;b&gt;MissingClosingParen&lt;/b&gt; (Num 5))
+&lt;/pre&gt;
+
+By parsing a total grammar, we can collect multiple errors in malformed inputs, and the resulting partial output is much more useful than a traditional error result would be. We can traverse the output tree to report all of these errors back to the user in one pass. Furthermore, even with errors in the output tree, we still have enough structure to perform further semantic analysis. For instance, if we want to diagnose division by zero, which is syntactically correct but semantically invalid, we can do that here by looking for the &quot;&lt;tt&gt;Div _ (Num 0)&lt;/tt&gt;&quot; pattern in the parse tree, and diagnosing where we find it, alerting the user to semantic errors they would otherwise have not seen until fixing all their syntax errors. A tool with this parser will be much more user-friendly than one that used a traditional parser that gave up on the first sign of a parse error.
+&lt;p&gt;
+Real world languages usually have grammars a lot more involved than this example, and thinking through every possible combination of tokens to give them specific treatment quickly becomes intractable. There&#39;s a more general fallback technique we can use to recover from parse errors. Language grammars tend to have natural &lt;b&gt;synchronization points&lt;/b&gt;, intentional or not, that unambiguously delimit (or at least have a high likelihood of delimiting) independent subcomponents. For instance, C always ends statements with semicolons, and it groups expressions in matching pairs of parentheses, square brackets, or curly braces. It also reserves keywords like &quot;&lt;tt&gt;struct&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;if&lt;/tt&gt;&quot;, &quot;&lt;tt&gt;while&lt;/tt&gt;&quot;, and so on that always introduce a new declaration or statement. Absent any more specific recovery, a good fallback strategy when a parse error is encountered is to scan ahead to one of these synchronization point tokens. Once a synchronizing token is found, the parser can unwind to the level of syntax the token indicates, filling in the incomplete tree underneath as best as possible. For instance, if a C parser encounters an error in the middle of an expression, it can start scanning, and if it finds a closing paren &quot;&lt;tt&gt;)&lt;/tt&gt;&quot;, it can match that to the previous &quot;&lt;tt&gt;(&lt;/tt&gt;&quot; and complete the surrounding paren expression or argument list and continue parsing the expression grammar from there. Otherwise, if the parser finds a semicolon, it can complete the current partial statement and start parsing a new statement. If it finds a closing curly brace, it can match that to the previous opening brace, complete the compound statement, and start parsing a new statement or declaration afterward.
+&lt;p&gt;
+Next time you need to write a parser for a configuration or programming language, hopefully this article gives some ideas on how to architect it in a way it can recover after parse errors, produce partial results when errors occur, and thereby allow your tools to give a higher-quality user experience. If you&#39;re designing a grammar from scratch, it&#39;s also good to think about how your grammar can be parsed in a recoverable way, by considering what kinds of errors or incomplete edits users may make, and what kinds of synchronization points you can design into the grammar so that a parser can recover from malformed input.
+
+</description>
+<dc:creator>Joe Groff</dc:creator>
+<dc:date>2018-03-04T20:18:00+00:00</dc:date>
+<guid>http://duriansoftware.com/joe/Constructing-human-grade-parsers.html</guid>
+</item>
+<item>
 <title>Optimizing global constant data structures using relative references</title>
 <link>http://duriansoftware.com/joe/Optimizing-global-constant-data-structures-using-relative-references.html</link>
 <description>
@@ -1770,213 +1858,6 @@ With the red tape of getting a window open out of the way, we&#39;re ready to ac
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-19T08:03:35+00:00</dc:date>
 <guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</guid>
-</item>
-<item>
-<title>An intro to modern OpenGL. Chapter 2.2: Shaders</title>
-<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</link>
-<description>
-&lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;&amp;laquo; Chapter 2.1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html&quot;&gt;Chapter 2.3 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
-&lt;p&gt;
-&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;Buffers and textures&lt;/a&gt; contain the raw materials for an OpenGL program, but without shaders, they are inert lumps of bytes. If you recall from our overview of the &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html#gl1-pipeline&quot;&gt;graphics pipeline&lt;/a&gt;, rendering requires a vertex shader, which maps our vertices into screen space, and a fragment shader, which colors in the rasterized fragments of the resulting triangles. Shaders in OpenGL are written in a language called GLSL (GL Shading Language), which looks a lot like C. In this article, we&#39;ll lay out the shader code for our &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html&quot;&gt;&quot;hello world&quot; program&lt;/a&gt; and then write the C code to load, compile, and link it into OpenGL.
-&lt;/p&gt;
-&lt;h3&gt;The vertex shader&lt;/h3&gt;
-&lt;p&gt;Here is the GLSL source code for our vertex shader, from &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl.v.glsl&quot;&gt;&lt;tt&gt;hello-gl.v.glsl&lt;/tt&gt;&lt;/a&gt;:&lt;/p&gt;
-&lt;pre&gt;
-#version 110
-
-attribute vec2 position;
-
-varying vec2 texcoord;
-
-void main()
-{
-    gl_Position = vec4(position, 0.0, 1.0);
-    texcoord = position * vec2(0.5) + vec2(0.5);
-}
-&lt;/pre&gt;
-&lt;img class=&quot;figure floated&quot; src=&quot;http://duriansoftware.com/joe/media/gl2-vertex-shader-01.png&quot;&gt;
-&lt;p&gt;I&#39;ll summarize what the shader does, then give a little more detail about the GLSL language. The shader first assigns the vertex&#39;s screen space position to &lt;tt&gt;gl_Position&lt;/tt&gt;, a predefined variable that GLSL provides for the purpose. In screen space, the coordinates (&amp;ndash;1, &amp;ndash;1) and (1, 1) correspond respectively to the lower-left and upper-right corners of the framebuffer; since our vertex array&#39;s vertices already trace that same rectangle, we can directly copy the &lt;i&gt;x&lt;/i&gt; and &lt;i&gt;y&lt;/i&gt; components from each vertex&#39;s &lt;tt&gt;position&lt;/tt&gt; value as it comes out of the vertex array. &lt;tt&gt;gl_Position&lt;/tt&gt;&#39;s other two vector components are used in depth testing and perspective projection; we&#39;ll look at them closer next chapter when we get into &lt;span class=&quot;smallcap&quot;&gt;3d&lt;/span&gt; math. For now, we just fill them with their identity values zero and one. The shader then does some math to map our screen-space &lt;tt&gt;position&lt;/tt&gt;s from screen space (&amp;ndash;1 to 1) to texture space (0 to 1) and assigns the result to the vertex&#39;s &lt;tt&gt;texcoord&lt;/tt&gt;.
-&lt;/p&gt;
-&lt;p&gt;Much like C, a GLSL shader starts executing from the &lt;tt&gt;main&lt;/tt&gt; function, which in GLSL&#39;s case takes no arguments and returns &lt;tt&gt;void&lt;/tt&gt;. GLSL borrows the C preprocessor syntax for its own directives. The &lt;tt&gt;#version&lt;/tt&gt; directive indicates the GLSL version of the following source code; our &lt;tt&gt;#version&lt;/tt&gt; declares that we&#39;re using GLSL 1.10. (GLSL versions are pretty tightly tied to OpenGL versions; 1.10 is the version that corresponds to OpenGL 2.0.) GLSL does away with pointers and most of C&#39;s sized numeric types, keeping only the &lt;tt&gt;bool&lt;/tt&gt;, &lt;tt&gt;int&lt;/tt&gt;, and &lt;tt&gt;float&lt;/tt&gt; types in common, but it adds a suite of vector and matrix types up to four components in length. The &lt;tt&gt;vec2&lt;/tt&gt; and &lt;tt&gt;vec4&lt;/tt&gt; types you see here are two- and four-component vectors of &lt;tt&gt;float&lt;/tt&gt;s, respectively. A type name can also be used as a constructor function for that type; you can construct a vector from either a single scalar value, which will be repeated into all the components of the vector, or from a combination of vectors and scalars, whose components will be strung together to form a larger vector. GLSL&#39;s math operators and many of its builtin functions are defined on these vector types to do component-wise math. In addition to numeric types, GLSL also supplies special &lt;tt&gt;sampler&lt;/tt&gt; data types for sampling textures, which we&#39;ll see in the fragment shader below. These basic types can be aggregated into array and user-defined &lt;tt&gt;struct&lt;/tt&gt; types.
-&lt;/p&gt;
-&lt;p&gt;
-A vertex shader communicates with the surrounding graphics pipeline using specially-declared global variables in the GLSL program. Its inputs come from &lt;tt&gt;uniform&lt;/tt&gt; variables, which supply values from the uniform state, and &lt;tt&gt;attribute&lt;/tt&gt; variables, which supply per-vertex attributes from the vertex array. The shader assigns its per-vertex outputs to &lt;tt&gt;varying&lt;/tt&gt; variables. GLSL predefines some varying variables to receive special outputs used by the graphics pipeline, including the &lt;tt&gt;gl_Position&lt;/tt&gt; variable we used here.
-&lt;/p&gt;
-
-&lt;h3&gt;The fragment shader&lt;/h3&gt;
-&lt;p&gt;Now let&#39;s look at the fragment shader source, from &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl.f.glsl&quot;&gt;&lt;tt&gt;hello-gl.f.glsl&lt;/tt&gt;&lt;/a&gt;:&lt;/p&gt;
-&lt;pre&gt;
-&lt;a name=&quot;gl2-fragment-shader&quot;&gt;#version 110
-
-uniform float fade_factor;
-uniform sampler2D textures[2];
-
-varying vec2 texcoord;
-
-void main()
-{
-    gl_FragColor = mix(
-        texture2D(textures[0], texcoord),
-        texture2D(textures[1], texcoord),
-        fade_factor
-    );
-}&lt;/a&gt;
-&lt;/pre&gt;
-&lt;img class=&quot;figure floated&quot; src=&quot;http://duriansoftware.com/joe/media/gl2-fragment-shader-01.png&quot;&gt;
-&lt;p&gt;In a fragment shader, some things change slightly. &lt;tt&gt;varying&lt;/tt&gt; variables become inputs here: Each varying variable in the fragment shader is linked to the vertex shader&#39;s varying variable of the same name, and each invocation of the fragment shader receives a rasterized version of the vertex shader&#39;s outputs for that varying variable. Fragment shaders are also given a different set of predefined &lt;tt&gt;gl_*&lt;/tt&gt; variables. &lt;tt&gt;gl_FragColor&lt;/tt&gt; is the most important, a &lt;tt&gt;vec4&lt;/tt&gt; to which the shader assigns the RGBA color value for the fragment. The fragment shader has access to the same set of &lt;tt&gt;uniform&lt;/tt&gt;s as the vertex shader, but cannot declare or access &lt;tt&gt;attribute&lt;/tt&gt; variables.&lt;/p&gt;
-&lt;p&gt;Our fragment shader uses GLSL&#39;s builtin &lt;tt&gt;texture2D&lt;/tt&gt; function to sample the two &lt;tt&gt;textures&lt;/tt&gt; from uniform state at &lt;tt&gt;texcoord&lt;/tt&gt;. It then calls the builtin &lt;tt&gt;mix&lt;/tt&gt; function to combine the two texture values based on the current value of the uniform &lt;tt&gt;fade_factor&lt;/tt&gt;: zero gives only the sample from the first texture, one gives only the second texture&#39;s sample, and values in between give us a blend of the two.&lt;/p&gt;
-&lt;p&gt;Now that we&#39;ve looked over the GLSL shader code, let&#39;s jump back into C and load the shaders into OpenGL.&lt;/p&gt;
-&lt;h3&gt;Storing our shader objects&lt;/h3&gt;
-&lt;pre&gt;
-static struct {
-    /* ... fields for &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-g-resources-buffers-textures&quot;&gt;buffer and texture&lt;/a&gt; objects */
-    GLuint vertex_shader, fragment_shader, program;
-    
-    struct {
-        GLint fade_factor;
-        GLint textures[2];
-    } uniforms;
-
-    struct {
-        GLint position;
-    } attributes;
-
-    GLfloat fade_factor;
-} g_resources;
-&lt;/pre&gt;
-&lt;p&gt;First, let&#39;s add some fields to our &lt;tt&gt;g_resources&lt;/tt&gt; structure to hold the names of our shader objects and program object after we construct them. Like buffers and textures, shader and program objects are named by &lt;tt&gt;GLuint&lt;/tt&gt; handles. We also add some fields to hold the integer &lt;b&gt;locations&lt;/b&gt; that we&#39;ll need to reference our shaders&#39; uniform and attribute variables. Finally, we add a field to hold the floating-point value we&#39;ll assign to the &lt;tt&gt;fade_factor&lt;/tt&gt; uniform every frame.&lt;/p&gt;
-&lt;h3&gt;Compiling shader objects&lt;/h3&gt;
-&lt;pre&gt;
-static GLuint make_shader(GLenum type, const char *filename)
-{
-    GLint length;
-    GLchar *source = file_contents(filename, &amp;length);
-    GLuint shader;
-    GLint shader_ok;
-
-    if (!source)
-        return 0;
-&lt;/pre&gt;
-&lt;p&gt;OpenGL compiles shader objects from their GLSL source code and keeps the generated GPU machine code to itself. There is no standard way to precompile a GLSL program into a binary&amp;mdash;you build the shader from source every time. Here we read our shader source out of a separate file, which lets us change the shader source without recompiling our C.&lt;/p&gt;
-&lt;pre&gt;
-    shader = glCreateShader(type);
-    glShaderSource(shader, 1, (const GLchar**)&amp;source, &amp;length);
-    free(source);
-    glCompileShader(shader);
-&lt;/pre&gt;
-&lt;p&gt;Shader and program objects deviate from the &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-object-model&quot;&gt;&lt;tt&gt;glGen&lt;/tt&gt;-and-&lt;tt&gt;glBind&lt;/tt&gt; protocol&lt;/a&gt; that buffer and texture objects follow. Unlike buffer and texture functions, functions that operate on shaders and programs take the object&#39;s integer name directly as an argument. The objects don&#39;t need to be bound to any target to be modified. Here, we create a shader object by calling &lt;tt&gt;glCreateShader&lt;/tt&gt; with the shader type (either &lt;tt&gt;GL_VERTEX_SHADER&lt;/tt&gt; or &lt;tt&gt;GL_FRAGMENT_SHADER&lt;/tt&gt;). We then supply an array of one or more pointers to strings of source code to &lt;tt&gt;glShaderSource&lt;/tt&gt;, and tell OpenGL to compile the shader with &lt;tt&gt;glCompileShader&lt;/tt&gt;. This step is analogous to the compilation stage of a C build process; a compiled shader object is akin to a &lt;tt&gt;.o&lt;/tt&gt; or &lt;tt&gt;.obj&lt;/tt&gt; file. Just as in a C project, any number of vertex and fragment shader objects can be linked together into a working program, with each shader object referencing functions defined in the others of the same type, as long as the referenced functions all resolve and a &lt;tt&gt;main&lt;/tt&gt; entry point is provided for both the vertex and fragment shaders.&lt;/p&gt;
-
-&lt;pre&gt;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &amp;shader_ok);
-    if (!shader_ok) {
-        fprintf(stderr, &quot;Failed to compile %s:\n&quot;, filename);
-        show_info_log(shader, glGetShaderiv, glGetShaderInfoLog);
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-&lt;/pre&gt;
-&lt;p&gt;
-Also just like a C program, a block of shader source code can fail to compile due to syntax errors, references to nonexistent functions, or type mismatches. OpenGL maintains an &lt;b&gt;info log&lt;/b&gt; for every shader object that contains errors or warnings raised by the GLSL compiler. After compiling the shader, we need to check its &lt;tt&gt;GL_COMPILE_STATUS&lt;/tt&gt; with &lt;tt&gt;glGetShaderiv&lt;/tt&gt;. If the compile fails, we display the info log using our &lt;tt&gt;show_info_log&lt;/tt&gt; function and give up. Here&#39;s how &lt;tt&gt;show_info_log&lt;/tt&gt; looks:
-&lt;/p&gt;
-&lt;pre&gt;
-static void show_info_log(
-    GLuint object,
-    PFNGLGETSHADERIVPROC glGet__iv,
-    PFNGLGETSHADERINFOLOGPROC glGet__InfoLog
-)
-{
-    GLint log_length;
-    char *log;
-
-    glGet__iv(object, GL_INFO_LOG_LENGTH, &amp;log_length);
-    log = malloc(log_length);
-    glGet__InfoLog(object, log_length, NULL, log);
-    fprintf(stderr, &quot;%s&quot;, log);
-    free(log);
-}
-&lt;/pre&gt;
-&lt;p&gt;We pass in the &lt;tt&gt;glGetShaderiv&lt;/tt&gt; and &lt;tt&gt;glGetShaderInfoLog&lt;/tt&gt; functions as arguments to &lt;tt&gt;show_info_log&lt;/tt&gt; so we can reuse the function for program objects further on. (Those &lt;tt&gt;PFNGL*&lt;/tt&gt; function pointer type names are provided by GLEW.) We use &lt;tt&gt;glGetShaderiv&lt;/tt&gt; with the &lt;tt&gt;GL_INFO_LOG_LENGTH&lt;/tt&gt; parameter to get the length of the info log, allocate a buffer to hold it, and download the contents using &lt;tt&gt;glGetShaderInfoLog&lt;/tt&gt;.&lt;/p&gt;
-
-&lt;h3&gt;Linking program objects&lt;/h3&gt;
-&lt;pre&gt;
-static GLuint make_program(GLuint vertex_shader, GLuint fragment_shader)
-{
-    GLint program_ok;
-
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
-&lt;/pre&gt;
-&lt;p&gt;
-If shader objects are the object files of the GLSL build process, then program objects are the finished executables. We create a program object using &lt;tt&gt;glCreateProgram&lt;/tt&gt;, attach shader objects to be linked into it with &lt;tt&gt;glAttachShader&lt;/tt&gt;, and set off the link process with &lt;tt&gt;glLinkProgram&lt;/tt&gt;.
-&lt;/p&gt;
-
-&lt;pre&gt;
-    glGetProgramiv(program, GL_LINK_STATUS, &amp;program_ok);
-    if (!program_ok) {
-        fprintf(stderr, &quot;Failed to link shader program:\n&quot;);
-        show_info_log(program, glGetProgramiv, glGetProgramInfoLog);
-        glDeleteProgram(program);
-        return 0;
-    }
-    return program;
-}
-&lt;/pre&gt;
-&lt;p&gt;Of course, linking can also fail, due to functions being referenced but not defined, missing &lt;tt&gt;main&lt;/tt&gt;s, fragment shaders using &lt;tt&gt;varying&lt;/tt&gt; inputs not supplied by the vertex shader, and other reasons analogous to the reasons C programs fail to link. We check the program&#39;s &lt;tt&gt;GL_LINK_STATUS&lt;/tt&gt; and dump its info log using &lt;tt&gt;show_info_log&lt;/tt&gt;, this time using the program-specific &lt;tt&gt;glGetProgramiv&lt;/tt&gt; and &lt;tt&gt;glGetProgramInfoLog&lt;/tt&gt; functions.&lt;/p&gt;
-&lt;p&gt;Now we can fill in the last part of &lt;tt&gt;make_resources&lt;/tt&gt; that compiles and links our shader program:&lt;/p&gt;
-&lt;pre&gt;
-static int make_resources(void)
-{
-    /* make &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-make-resources-buffers&quot;&gt;buffers&lt;/a&gt; and &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html#gl2-make-resources-textures&quot;&gt;textures&lt;/a&gt; ... */
-    g_resources.vertex_shader = make_shader(
-        GL_VERTEX_SHADER,
-        &quot;hello-gl.v.glsl&quot;
-    );
-    if (g_resources.vertex_shader == 0)
-        return 0;
-
-    g_resources.fragment_shader = make_shader(
-        GL_FRAGMENT_SHADER,
-        &quot;hello-gl.f.glsl&quot;
-    );
-    if (g_resources.fragment_shader == 0)
-        return 0;
-
-    g_resources.program = make_program(
-        g_resources.vertex_shader,
-        g_resources.fragment_shader
-    );
-    if (g_resources.program == 0)
-        return 0;
-&lt;/pre&gt;
-&lt;h3&gt;Looking up shader variable locations&lt;/h3&gt;
-&lt;pre&gt;
-    g_resources.uniforms.fade_factor
-        = glGetUniformLocation(g_resources.program, &quot;fade_factor&quot;);
-    g_resources.uniforms.textures[0]
-        = glGetUniformLocation(g_resources.program, &quot;textures[0]&quot;);
-    g_resources.uniforms.textures[1]
-        = glGetUniformLocation(g_resources.program, &quot;textures[1]&quot;);
-
-    g_resources.attributes.position
-        = glGetAttribLocation(g_resources.program, &quot;position&quot;);
-
-    return 1;
-}
-&lt;/pre&gt;
-&lt;p&gt;The GLSL linker assigns a &lt;tt&gt;GLint&lt;/tt&gt; &lt;b&gt;location&lt;/b&gt; to every &lt;tt&gt;uniform&lt;/tt&gt; value and vertex shader &lt;tt&gt;attribute&lt;/tt&gt;. Structs and arrays of uniforms or attributes get further broken down, with each field getting its own location assigned. When we render using the program, we&#39;ll need to use these integer locations when we assign values to the uniform variables and when we map parts of the vertex array to attributes. Here, we use the functions &lt;tt&gt;glGetUniformLocation&lt;/tt&gt; and &lt;tt&gt;glGetAttribLocation&lt;/tt&gt; to look up these locations, giving them the variable, struct field, or array element name as a string. We then record those locations in our program&#39;s &lt;tt&gt;g_resources&lt;/tt&gt; struct. With the program linked and the uniform and attribute locations on record, we are now ready to render using the program.&lt;/p&gt;
-
-&lt;h3&gt;Next time, we render&lt;/h3&gt;
-&lt;p&gt;I know I&#39;ve left you hanging these last couple parts without a complete, working program to run. I&#39;ll fix that in the next and final part of this chapter, when we write the code that will actually set the graphics pipeline in motion and render our scene.&lt;/p&gt;
-&lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;&amp;laquo; Chapter 2.1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html&quot;&gt;Chapter 2.3 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
-
-</description>
-<dc:creator>Joe Groff</dc:creator>
-<dc:date>2010-04-06T00:29:36+00:00</dc:date>
-<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.2:-Shaders.html</guid>
 </item>
 
 </channel>

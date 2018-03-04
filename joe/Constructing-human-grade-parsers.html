@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<title>Constructing human-grade parsers</title>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<meta name=twitter:card content=summary>
+<meta name=twitter:site content=@jckarter>
+<meta name=twitter:title content="Constructing human-grade parsers">
+<meta name=twitter:description content="Parsing is one of the most thoroughly explored topics in computer science, but building parsers that give high-quality diagnostics and user feedback is still largely folk art. Here are some observatio&hellip;">
+<h1>Constructing human-grade parsers</h1>
+<div class=date>March 4, 2018</div>
+Parsing is one of the most thoroughly explored topics in computer science, but building parsers that give high-quality diagnostics and user feedback is still largely folk art. Here are some observations on how parsers can be constructed in a way that makes it easier to recover from parse errors, produce multiple diagnostics in one pass, and provide partial results for further analysis even in the face of errors, providing a better experience for user-driven command line tools and interactive environments.
+<p>
+In the traditional conception of a parser, there's a grammar, there are strings that do or don't match the grammar, and there are actions to take in response to inputs that match the grammar, but little attention is often paid to what to do with inputs that don't match. Most of us have probably encountered a tool that produces obtuse, grammar-oriented errors of the "<tt>expected ';' or '∑' or 'blörp'</tt>" sort.  Diagnostic quality aside, when a tool only produces one error at a time like this, the user has to go through a tedious loop of fixing one error, re-running the tool, fixing the next error, and so on, until they get a successful parse. Stopping parsing on erroring is the right thing to do when non-user-facing parsers for things like serialization and wire protocols encounter strings that don't match their grammar, but for tools that work with text that gets directly edited by human beings, like source code and configuration files, parse errors are much more likely, and working with a naive parser that can only report localized parse errors one at a time quickly gets irritating. A tool is much more user friendly if each run produces as many diagnostics as possible in one run, allowing the user to fix them all in one editing pass and have a higher likelihood of a successful run next time. For a user-facing tool, <b>parse errors should be recoverable</b> and the parser should be able to keep going to collect multiple errors.
+
+<p>
+Programming language compilers also usually run multiple passes over their input. After parsing, compilers perform type checking and other semantic analysis on the parse result to check additional invariants. In order to maximize the diagnostic coverage a compiler can achieve in a single pass, <b>parsing should be able to produce partial output</b> even in the face of errors, so that analysis passes after parsing can process the well-formed parts of the file. This is important for maximizing diagnostic coverage when running a compiler from the commandline, but it's even more critical when a compiler is used interactively as part of an IDE. When a user is actively editing a source file, the compiler is going to constantly be exposed to inconsistent states, but the user is going to expect to still get accurate information about the parts of the file they aren't actively editing. Features like code completion especially need to be able to use semantic information from the well-formed parts of a file in order to assist editing the incomplete parts.
+
+<p>
+So we want to build parsers that can recover from parse errors and produce partial output with the well-formed parts. Thinking about it a different way, we want <b>parsing to always succeed</b> at producing some kind of structured result. The result can contain error nodes inside it, but the error nodes don't have to replace the entire result. How do we make a parser that always succeeds, and how exactly do we recover when we find a parse error? We can look at both problems from the perspective of designing the grammar. Effectively, we want to take a grammar and extend it to make it <b>total</b>, so that every string matches a rule, by adding rules for erroneous inputs.
+
+<p>
+Doing this well is an art, and requires some human judgment and iteration to get the best results. To get an idea of how we might go about it, let's consider a toy example. We'll look at a language for arithmetic expressions, with the basic operators "<tt>+</tt>", "<tt>-</tt>", "<tt>*</tt>", and "<tt>/</tt>", where "<tt>*</tt>" and "<tt>/</tt>" bind more tightly than "<tt>+</tt>" and "<tt>-</tt>", and parentheses "<tt>()</tt>" can be used to group expressions against their normal precedence. The grammar might look something like this in EBNF:
+
+<pre>
+expr ::= mul-expr (add-op mul-expr)*
+mul-expr ::= term (mul-op term)*
+term ::= number | '(' expr ')'
+add-op ::= '+' | '-'
+mul-op ::= '*' | '/'
+number ::= add-op? [0-9]+
+</pre>
+
+This grammar matches strings like "<tt>1+(2-3)*4/5</tt>", but let's consider what kinds of strings it doesn't match, and what the user likely meant if they entered a nonmatching string. First of all, the user could have entered a character that doesn't appear in the grammar at all. The grammar only includes the digits "<tt>0</tt>" through "<tt>9</tt>", the operators "<tt>+</tt>", "<tt>-</tt>", "<tt>*</tt>", and "<tt>/</tt>", and the parens "<tt>()</tt>". The user may have tried to include other alphanumeric characters or other punctuation characters. We could make an educated guess that, if the user wrote an alphabetic character, they intended something number-like, or if they wrote a symbol character, they intended something operator-like. We can extend the grammar with error rules for these, so that it can match any character:
+<pre>
+term ::= number | '(' expr ')'
+number ::= add-op? ([0-9] | <b>error-alnum</b>)+
+error-alnum ::= ([:Letter:] | [:Number:])+
+
+mul-op ::= '*' | '/' | <b>error-op</b>
+error-op ::= [:Mark:] | [:Punctuation:] | [:Symbol:]
+</pre>
+
+The user may also have left a token out, typing multiple operators without a number in between, a string that begins with a "<tt>*</tt>" or "<tt>/</tt>" operator without a number before it, a string that ends with an operator, multiple parenthesized terms without an operator between, parens without anything inside them, or mismatched parens. In any of these situations, we can parse as if the likely-to-be-missing token is there. We can add rules to the grammar like this:
+
+<pre>
+expr ::= mul-expr (add-op <b>mul-expr?</b>)*         -- error if mul-expr is missing
+mul-expr ::= <b>term</b> (mul-op? <b>term?</b>)*            -- error if term or mul-op is missing
+           | mul-op term? (mul-op? <b>term?</b>)*    -- error with missing first term
+term ::= number
+       | '(' <b>expr? ')'?</b>                       -- error if empty or closing paren missing
+       | <b>expr? ')'</b>                            -- error if opening paren is missing
+number ::= add-op? ([0-9] | error-alnum)+
+         | <b>add-op</b>                             -- error with missing number after sign
+</pre>
+
+The grammar can now cope with any sequence of tokens. With this grammar in hand, when we implement the parser, we can have it build a parse tree data structure with nodes for both valid and invalid productions. Without getting into the mechanicals details of the implementation, the resulting parser could behave something like this:
+
+<pre>
+data ArithExpr = Add ArithExpr ArithExpr    -- '1 + 2'
+               | Sub ArithExpr ArithExpr    -- '1 - 2'
+               | Mul ArithExpr ArithExpr    -- '1 * 2'
+               | Div ArithExpr ArithExpr    -- '1 / 2'
+               | Parens ArithExpr           -- '(1)'
+               | Num Double                 -- '1.23'
+               -- invalid productions:
+               | InvalidOp String ArithExpr ArithExpr -- '1?2' (with invalid char '?')
+               | InvalidNum String                    -- 'xyz' (with invalid char 'xyz')
+               | MissingOp ArithExpr ArithExpr        -- '(1)(2)' (no op in between)
+               | MissingNum                           -- '' (no number where expected)
+               | MissingOpeningParen                  -- '1)'
+               | MissingClosingParen                  -- '(1'
+
+parseArithExpr :: String -> <b>ArithExpr</b>  -- always returns an ArithExpr, no Maybe or Either
+
+parseArithExpr "1+2*3"    -- Add (Num 1) (Mul (Num 2) (Num 3))
+parseArithExpr "(1+2)*3"  -- Mul (Parens (Add (Num 1) (Num 2))) (Num 3)
+parseArithExpr "1&2&3"    -- InvalidOp "&" (InvalidOp "&" (Num 1) (Num 2)) (Num 3)
+parseArithExpr "1+2+a/0*" -- Add (Add (Num 1) (Num 2))
+                          --     (Mul (Div (<b>InvalidNum</b> "a". (Num 0)) <b>MissingNum</b>)
+parseArithExpr "4)()(5"   -- <b>MissingOp</b> (<b>MissingOp</b> (<b>MissingOpeningParen</b> (Num 4)) (Parens (<b>MissingNum</b>)))
+                          --           (<b>MissingClosingParen</b> (Num 5))
+</pre>
+
+By parsing a total grammar, we can collect multiple errors in malformed inputs, and the resulting partial output is much more useful than a traditional error result would be. We can traverse the output tree to report all of these errors back to the user in one pass. Furthermore, even with errors in the output tree, we still have enough structure to perform further semantic analysis. For instance, if we want to diagnose division by zero, which is syntactically correct but semantically invalid, we can do that here by looking for the "<tt>Div _ (Num 0)</tt>" pattern in the parse tree, and diagnosing where we find it, alerting the user to semantic errors they would otherwise have not seen until fixing all their syntax errors. A tool with this parser will be much more user-friendly than one that used a traditional parser that gave up on the first sign of a parse error.
+<p>
+Real world languages usually have grammars a lot more involved than this example, and thinking through every possible combination of tokens to give them specific treatment quickly becomes intractable. There's a more general fallback technique we can use to recover from parse errors. Language grammars tend to have natural <b>synchronization points</b>, intentional or not, that unambiguously delimit (or at least have a high likelihood of delimiting) independent subcomponents. For instance, C always ends statements with semicolons, and it groups expressions in matching pairs of parentheses, square brackets, or curly braces. It also reserves keywords like "<tt>struct</tt>", "<tt>if</tt>", "<tt>while</tt>", and so on that always introduce a new declaration or statement. Absent any more specific recovery, a good fallback strategy when a parse error is encountered is to scan ahead to one of these synchronization point tokens. Once a synchronizing token is found, the parser can unwind to the level of syntax the token indicates, filling in the incomplete tree underneath as best as possible. For instance, if a C parser encounters an error in the middle of an expression, it can start scanning, and if it finds a closing paren "<tt>)</tt>", it can match that to the previous "<tt>(</tt>" and complete the surrounding paren expression or argument list and continue parsing the expression grammar from there. Otherwise, if the parser finds a semicolon, it can complete the current partial statement and start parsing a new statement. If it finds a closing curly brace, it can match that to the previous opening brace, complete the compound statement, and start parsing a new statement or declaration afterward.
+<p>
+Next time you need to write a parser for a configuration or programming language, hopefully this article gives some ideas on how to architect it in a way it can recover after parse errors, produce partial results when errors occur, and thereby allow your tools to give a higher-quality user experience. If you're designing a grammar from scratch, it's also good to think about how your grammar can be parsed in a recoverable way, by considering what kinds of errors or incomplete edits users may make, and what kinds of synchronization points you can design into the grammar so that a parser can recover from malformed input.
+
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+</ul>
+</div>
