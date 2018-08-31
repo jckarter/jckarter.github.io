@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<title>Optimizing is-multiple checks with modular arithmetic</title>
+<link rel=stylesheet href=../durians.css>
+<link rel=alternate type=application/rss+xml title="Joe's Blog" href=index.rss>
+<meta name=viewport content=width=device-width>
+<meta charset=utf-8>
+<meta name=twitter:card content=summary>
+<meta name=twitter:site content=@jckarter>
+<meta name=twitter:title content="Optimizing is-multiple checks with modular arithmetic">
+<meta name=twitter:description content="Integer division and remainder are among the slowest fundamental arithmetic operations CPUs support, an order of magnitude or more slower than multiplication on many architectures, so compilers have a&hellip;">
+<h1>Optimizing is-multiple checks with modular arithmetic</h1>
+<div class=date>August 30, 2018</div>
+Integer division and remainder are among the slowest fundamental arithmetic operations CPUs
+support, an order of magnitude or more slower than multiplication on many architectures, so
+compilers have a lot of incentive to turn them into cheaper operations.
+It's common for the divisor to be a constant, in which case there's a well-known
+transformation your C compiler probably does to turn a division into a multiplication by an
+binary approximation of the reciprocal of the divisor.
+For example, <tt>clang</tt> and <tt>gcc</tt> compile the following C code:
+
+<pre>
+unsigned divide(unsigned x) {
+  return x / 679;
+}
+</pre>
+
+into the following assembly:
+
+<pre>
+divide:
+  mov eax, edi
+  imul rax, rax, 1619310203  # multiply by ceil(1/679 * 2**40) == 1619310203
+  shr rax, 40                # divide by 2**40 via right shift
+  ret
+</pre>
+
+<a href="http://ridiculousfish.com/blog/posts/labor-of-division-episode-i.html">Ridiculous Fish
+explores this optimization</a> in much further depth. A related common operation, the one I
+want to focus on here, is to test whether a number is an exact multiple of
+another, using the remainder operator:
+
+<pre>
+bool is_multiple(unsigned x) {
+  return x % 679 == 0;
+}
+</pre>
+
+<tt>clang</tt> and <tt>gcc</tt> leverage the same division-into-multiplication trick to optimize
+this operation, first performing the division via multiplication, then
+multiplying by the divisor and comparing the result to see if the result
+matches:
+
+<pre>
+is_multiple:
+  mov eax, edi
+  imul rax, rax, 1619310203  # multiply by ceil(1/679 * 2**40) == 1619310203
+  shr rax, 40                # divide by 2**40 via right shift
+  imul ecx, eax, 679         # multiply the result by 679 again
+  cmp edi, ecx               # is it equal to the original value?
+  sete al
+  ret
+</pre>
+
+This is an improvement over using a division instruction to perform the
+remainder, but the above code sequence still involves two multiplications, one
+of which is a "double-width" multiplication (getting a 64 bit result from 32
+bit operands), along with a double-width right shift. Can we do better? It
+turns out we can, using some tricks with modular arithmetic. Integer arithmetic
+in a 32- or 64-bit CPU register wraps if it overflows, effectively implementing
+the integers modulo 2³² or 2⁶⁴. An interesting property of integers modulo 2ⁿ is
+that every odd number has a
+<a href="https://en.wikipedia.org/wiki/Modular_multiplicative_inverse">modular inverse</a>,
+which is another number it can be multiplied with modulo 2ⁿ to produce 1. Some examples modulo 2³²:
+
+<pre>
+     3 * 2_863_311_531 ==    0x2_0000_0001 == 1 (mod 2**32)
+   679 * 2_068_415_767 ==  0x147_0000_0001 == 1 (mod 2**32)
+65_535 * 4_294_901_759 == 0xfffe_0000_0001 == 1 (mod 2**32)
+</pre>
+
+For any number that's a multiple of the original number, multiplying by the modular inverse will
+divide it:
+
+<pre>
+        3 * 2_863_311_531 ==     1 (mod 2**32)
+        6 * 2_863_311_531 ==     2 (mod 2**32)
+        9 * 2_863_311_531 ==     3 (mod 2**32)
+   36_912 * 2_863_311_531 == 12304 (mod 2**32)
+
+      679 * 2_068_415_767 ==    1 (mod 2**32)
+     1358 * 2_068_415_767 ==    2 (mod 2**32)
+     2037 * 2_068_415_767 ==    3 (mod 2**32)
+1_180_102 * 2_068_415_767 == 1738 (mod 2**32)
+</pre>
+
+Another interesting thing about multiplication by an odd number modulo 2ⁿ is that it
+<b>permutes</b> the group of numbers. If we take every number from 0 to 2ⁿ – 1 and multiply it by
+the same odd number modulo 2ⁿ, we will see all of those numbers in the results
+once, just in a different order. Since the multiples of 679 between 0 and 2³²
+all map to their dividends when multiplied by the inverse 2,068,415,767, that
+uses up the values 0 up to ⌊2³²/679⌋ = 6,325,430 in the permuted set modulo 2³². This
+means that every non-multiple must give a result larger than any multiple
+produces. So we can reimplement the <tt>is_multiple</tt> function as:
+
+<pre>
+bool is_multiple(unsigned x) {
+  // return x % 679 == 0;
+  return x * 2068415767u < 6325431u;
+}
+</pre>
+
+which compiles down to:
+
+<pre>
+is_multiple:
+  imul ecx, edi, 2068415767
+  cmp ecx, 6325431
+  setb al
+  ret
+</pre>
+
+using only one multiplication to do what LLVM and GCC do in two! (Before you ask, yes, I filed 
+a bug to add this optimization to LLVM.)
+<p>
+Even numbers do not have a multiplicative inverse modulo 2ⁿ, but we can still use this trick,
+since they can be factored into a power of two and an odd number. For instance,
+1738 = 869 × 2, and a number is a multiple of 1738 if it is a multiple of both
+869 and 2. Testing whether something is a multiple of 2 is done easily by
+bitwise-and of the low bits, and we can use the above trick to test whether something is
+a multiple of the odd factor. So:
+
+<pre>
+bool is_multiple(unsigned x) {
+  return x % 1738 == 0;
+}
+</pre>
+
+can be optimized into:
+
+<pre>
+unsigned is_multiple(unsigned x) {
+  unsigned inv = x * 148272749u; // inverse of 869 mod 2**32
+  return inv < 4942425u // ceil(2**32/869)
+      && (inv & 1) == 0;
+}
+</pre>
+
+
+<p>
+<div class=footer>
+<ul>
+<li>email <a href=mailto:joe@duriansoftware.com>joe@duriansoftware.com</a>
+<li>tweet <a href=https://twitter.com/jckarter/>@jckarter</a>
+<li>github <a href=https://github.com/jckarter/>jckarter</a>
+<li><a href=index.html>other articles</a>
+<li><a href=index.rss>rss feed</a>
+</ul>
+</div>

@@ -6,6 +6,151 @@
 <description>Joe's blog.</description>
 <language>en-us</language>
 <item>
+<title>Optimizing is-multiple checks with modular arithmetic</title>
+<link>http://duriansoftware.com/joe/Optimizing-is-multiple-checks-with-modular-arithmetic.html</link>
+<description>
+Integer division and remainder are among the slowest fundamental arithmetic operations CPUs
+support, an order of magnitude or more slower than multiplication on many architectures, so
+compilers have a lot of incentive to turn them into cheaper operations.
+It&#39;s common for the divisor to be a constant, in which case there&#39;s a well-known
+transformation your C compiler probably does to turn a division into a multiplication by an
+binary approximation of the reciprocal of the divisor.
+For example, &lt;tt&gt;clang&lt;/tt&gt; and &lt;tt&gt;gcc&lt;/tt&gt; compile the following C code:
+
+&lt;pre&gt;
+unsigned divide(unsigned x) {
+  return x / 679;
+}
+&lt;/pre&gt;
+
+into the following assembly:
+
+&lt;pre&gt;
+divide:
+  mov eax, edi
+  imul rax, rax, 1619310203  # multiply by ceil(1/679 * 2**40) == 1619310203
+  shr rax, 40                # divide by 2**40 via right shift
+  ret
+&lt;/pre&gt;
+
+&lt;a href=&quot;http://ridiculousfish.com/blog/posts/labor-of-division-episode-i.html&quot;&gt;Ridiculous Fish
+explores this optimization&lt;/a&gt; in much further depth. A related common operation, the one I
+want to focus on here, is to test whether a number is an exact multiple of
+another, using the remainder operator:
+
+&lt;pre&gt;
+bool is_multiple(unsigned x) {
+  return x % 679 == 0;
+}
+&lt;/pre&gt;
+
+&lt;tt&gt;clang&lt;/tt&gt; and &lt;tt&gt;gcc&lt;/tt&gt; leverage the same division-into-multiplication trick to optimize
+this operation, first performing the division via multiplication, then
+multiplying by the divisor and comparing the result to see if the result
+matches:
+
+&lt;pre&gt;
+is_multiple:
+  mov eax, edi
+  imul rax, rax, 1619310203  # multiply by ceil(1/679 * 2**40) == 1619310203
+  shr rax, 40                # divide by 2**40 via right shift
+  imul ecx, eax, 679         # multiply the result by 679 again
+  cmp edi, ecx               # is it equal to the original value?
+  sete al
+  ret
+&lt;/pre&gt;
+
+This is an improvement over using a division instruction to perform the
+remainder, but the above code sequence still involves two multiplications, one
+of which is a &quot;double-width&quot; multiplication (getting a 64 bit result from 32
+bit operands), along with a double-width right shift. Can we do better? It
+turns out we can, using some tricks with modular arithmetic. Integer arithmetic
+in a 32- or 64-bit CPU register wraps if it overflows, effectively implementing
+the integers modulo 2³² or 2⁶⁴. An interesting property of integers modulo 2ⁿ is
+that every odd number has a
+&lt;a href=&quot;https://en.wikipedia.org/wiki/Modular_multiplicative_inverse&quot;&gt;modular inverse&lt;/a&gt;,
+which is another number it can be multiplied with modulo 2ⁿ to produce 1. Some examples modulo 2³²:
+
+&lt;pre&gt;
+     3 * 2_863_311_531 ==    0x2_0000_0001 == 1 (mod 2**32)
+   679 * 2_068_415_767 ==  0x147_0000_0001 == 1 (mod 2**32)
+65_535 * 4_294_901_759 == 0xfffe_0000_0001 == 1 (mod 2**32)
+&lt;/pre&gt;
+
+For any number that&#39;s a multiple of the original number, multiplying by the modular inverse will
+divide it:
+
+&lt;pre&gt;
+        3 * 2_863_311_531 ==     1 (mod 2**32)
+        6 * 2_863_311_531 ==     2 (mod 2**32)
+        9 * 2_863_311_531 ==     3 (mod 2**32)
+   36_912 * 2_863_311_531 == 12304 (mod 2**32)
+
+      679 * 2_068_415_767 ==    1 (mod 2**32)
+     1358 * 2_068_415_767 ==    2 (mod 2**32)
+     2037 * 2_068_415_767 ==    3 (mod 2**32)
+1_180_102 * 2_068_415_767 == 1738 (mod 2**32)
+&lt;/pre&gt;
+
+Another interesting thing about multiplication by an odd number modulo 2ⁿ is that it
+&lt;b&gt;permutes&lt;/b&gt; the group of numbers. If we take every number from 0 to 2ⁿ – 1 and multiply it by
+the same odd number modulo 2ⁿ, we will see all of those numbers in the results
+once, just in a different order. Since the multiples of 679 between 0 and 2³²
+all map to their dividends when multiplied by the inverse 2,068,415,767, that
+uses up the values 0 up to ⌊2³²/679�&#8249; = 6,325,430 in the permuted set modulo 2³². This
+means that every non-multiple must give a result larger than any multiple
+produces. So we can reimplement the &lt;tt&gt;is_multiple&lt;/tt&gt; function as:
+
+&lt;pre&gt;
+bool is_multiple(unsigned x) {
+  // return x % 679 == 0;
+  return x * 2068415767u &lt; 6325431u;
+}
+&lt;/pre&gt;
+
+which compiles down to:
+
+&lt;pre&gt;
+is_multiple:
+  imul ecx, edi, 2068415767
+  cmp ecx, 6325431
+  setb al
+  ret
+&lt;/pre&gt;
+
+using only one multiplication to do what LLVM and GCC do in two! (Before you ask, yes, I filed 
+a bug to add this optimization to LLVM.)
+&lt;p&gt;
+Even numbers do not have a multiplicative inverse modulo 2ⁿ, but we can still use this trick,
+since they can be factored into a power of two and an odd number. For instance,
+1738 = 869 × 2, and a number is a multiple of 1738 if it is a multiple of both
+869 and 2. Testing whether something is a multiple of 2 is done easily by
+bitwise-and of the low bits, and we can use the above trick to test whether something is
+a multiple of the odd factor. So:
+
+&lt;pre&gt;
+bool is_multiple(unsigned x) {
+  return x % 1738 == 0;
+}
+&lt;/pre&gt;
+
+can be optimized into:
+
+&lt;pre&gt;
+unsigned is_multiple(unsigned x) {
+  unsigned inv = x * 148272749u; // inverse of 869 mod 2**32
+  return inv &lt; 4942425u // ceil(2**32/869)
+      &amp;&amp; (inv &amp; 1) == 0;
+}
+&lt;/pre&gt;
+
+
+</description>
+<dc:creator>Joe Groff</dc:creator>
+<dc:date>2018-08-31T04:40:32+00:00</dc:date>
+<guid>http://duriansoftware.com/joe/Optimizing-is-multiple-checks-with-modular-arithmetic.html</guid>
+</item>
+<item>
 <title>Constructing human-grade parsers</title>
 <link>http://duriansoftware.com/joe/Constructing-human-grade-parsers.html</link>
 <description>
@@ -1713,151 +1858,6 @@ nmake /f Nmakefile.Windows
 <dc:creator>Joe Groff</dc:creator>
 <dc:date>2010-04-25T20:13:38+00:00</dc:date>
 <guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.3:-Rendering.html</guid>
-</item>
-<item>
-<title>An intro to modern OpenGL. Chapter 2: Hello World: The Slideshow</title>
-<link>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</link>
-<description>
-&lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html&quot;&gt;&amp;laquo; Chapter 1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;Chapter 2.1 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
-&lt;p&gt;
-&lt;b&gt;Updates:&lt;/b&gt; I&#39;ve fixed a few problems people have reported, particularly problems building on Unix and using Visual C++. This chapter also got featured &lt;a href=&quot;http://www.reddit.com/r/programming/comments/biw8t/an_intro_to_modern_opengl_chapter_2_hello_world/&quot;&gt;on Reddit&lt;/a&gt;.
-&lt;/p&gt;
-&lt;p&gt;
-In the &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html&quot;&gt;previous chapter&lt;/a&gt; I gave a big-picture overview of the graphics pipeline. Now it&#39;s time to put it into action. Before we try rendering any fancy &lt;span class=&quot;smallcap&quot;&gt;3d&lt;/span&gt; scenes, I&#39;ll follow standard tutorial protocol and use a simple, two-dimensional &quot;hello world&quot; app to demonstrate the basics of the OpenGL API. We&#39;re going to take this image:
-&lt;/p&gt;
-&lt;center&gt;&lt;img class=&quot;figure&quot; src=&quot;http://duriansoftware.com/joe/media/gl2-hello-1.png&quot;&gt;&lt;/center&gt;
-&lt;p&gt;
-and draw it to an appropriately-sized window. But static images are kind of dull&amp;mdash;how about we make it a little more interesting by fading back and forth with this image:
-&lt;/p&gt;
-&lt;center&gt;&lt;img class=&quot;figure&quot; src=&quot;http://duriansoftware.com/joe/media/gl2-hello-2.png&quot;&gt;&lt;/center&gt;
-&lt;p&gt;
-Still not all that exciting a program, but despite its simplicity, the program will exercise almost all the parts of OpenGL a more complex program would. The completed source code is up on Github &lt;a href=&quot;http://github.com/jckarter/hello-gl&quot;&gt;here&lt;/a&gt;. At 380 lines of C and a couple dozen lines of shader code, this program may seem like overkill just to draw an image to the screen. However, much of it will lay the groundwork for the more interesting demos to come. The &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl.c&quot;&gt;&lt;tt&gt;hello-gl.c&lt;/tt&gt;&lt;/a&gt; source file contains the OpenGL rendering bits, while &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/util.c&quot;&gt;&lt;tt&gt;util.c&lt;/tt&gt;&lt;/a&gt; contains boring utility functions for reading TGA image files. I&#39;ve included the two images, &lt;tt&gt;hello1.tga&lt;/tt&gt; and &lt;tt&gt;hello2.tga&lt;/tt&gt;, in this format, because it&#39;s easy to parse without depending on an external library. Our shader code lives in two files: &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl.v.glsl&quot;&gt;&lt;tt&gt;hello-gl.v.glsl&lt;/tt&gt;&lt;/a&gt; for the vertex shader, and &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl.f.glsl&quot;&gt;&lt;tt&gt;hello-gl.f.glsl&lt;/tt&gt;&lt;/a&gt; for the fragment shader.
-&lt;/p&gt;
-&lt;p&gt;
-In this chapter, I&#39;ll explain how the different parts of the &lt;tt&gt;hello-gl&lt;/tt&gt; program use the OpenGL API to feed data into the graphics pipeline and put it in action. I&#39;ll also give a brief overview of the GLSL language when we look at shaders. It&#39;s a lot to cover all in one blog post, so I&#39;ll break the chapter up into four parts. In this first part, we&#39;ll get a window open with GLUT. In the second part, we&#39;ll set up the buffer and texture objects that will contain the raw vertex and image data for our program. After that, we&#39;ll write the shader code that will process that data into our final image on screen, and then feed the shader into OpenGL. In the final article, we&#39;ll go through the OpenGL calls that actually render to the screen. Now that our game plan&#39;s laid out, let&#39;s start putting the players on the field. We&#39;ll start things off by setting up GLUT and getting an empty window up on the screen.
-&lt;/p&gt;
-&lt;h3&gt;OpenGL header files&lt;/h3&gt;
-&lt;pre&gt;
-#include &amp;lt;stdlib.h&amp;gt;
-#include &amp;lt;GL/glew.h&amp;gt;
-#ifdef __APPLE__
-#  include &amp;lt;GLUT/glut.h&amp;gt;
-#else
-#  include &amp;lt;GL/glut.h&amp;gt;
-#endif
-&lt;/pre&gt;
-&lt;p&gt;Different platforms keep their OpenGL headers in different places, but with GLEW, you don&#39;t need to worry about that. Including &lt;tt&gt;GL/glew.h&lt;/tt&gt; will pull in the system OpenGL headers for you, wherever they may live. Unfortunately, including GLUT still requires you to manually step around some cross-platform landmines. Its header traditionally lives in &lt;tt&gt;GL/glut.h&lt;/tt&gt;, but MacOS X&#39;s bundled GLUT framework uses Apple&#39;s own header file convention, putting the GLUT header in &lt;tt&gt;GLUT/glut.h&lt;/tt&gt;. There&#39;s also a bug in the way recent versions of Visual Studio&#39;s standard C headers interact with &lt;tt&gt;glut.h&lt;/tt&gt; that requires &lt;tt&gt;stdlib.h&lt;/tt&gt; to be included before it.
-&lt;/p&gt;
-
-&lt;h3&gt;Setting up our window with GLUT&lt;/h3&gt;
-&lt;pre&gt;
-int main(int argc, char** argv)
-{
-    glutInit(&amp;argc, argv);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-    glutInitWindowSize(400, 300);
-    glutCreateWindow(&quot;Hello World&quot;);
-    glutDisplayFunc(&amp;render);
-    glutIdleFunc(&amp;update_fade_factor);
-&lt;/pre&gt;
-&lt;p&gt;
-GLUT provides a limited, but straightforward and portable, interface to the window system. After prepping GLUT by calling &lt;tt&gt;glutInit&lt;/tt&gt;, we use &lt;tt&gt;glutInitDisplayMode&lt;/tt&gt; to specify what buffers our default framebuffer should have. In our case, a color buffer (&lt;tt&gt;GLUT_RGB&lt;/tt&gt;) with double buffering (&lt;tt&gt;GLUT_DOUBLE&lt;/tt&gt;) is sufficient. (&lt;a href=&quot;http://en.wikipedia.org/wiki/Double_buffering#Double_buffering_in_computer_graphics&quot;&gt;Double buffering&lt;/a&gt; provides two color buffers to the framebuffer, alternating which buffer is displayed onscreen and which buffer is drawn into every frame so that animation appears smooth.) If we needed a depth or stencil buffer, we could also ask for them here. We then set the initial size for our window to the 400&amp;#xd7;300 size of our images with &lt;tt&gt;glutInitWindowSize&lt;/tt&gt; and create the window with &lt;tt&gt;glutCreateWindow&lt;/tt&gt;. Finally, we designate two callbacks to receive window events: a &lt;tt&gt;glutDisplayFunc&lt;/tt&gt; to render our image when the window needs displaying, and a &lt;tt&gt;glutIdleFunc&lt;/tt&gt; to continuously update the fade factor between the two images over time.
-&lt;/p&gt;
-&lt;pre&gt;
-    glewInit();
-    if (!GLEW_VERSION_2_0) {
-        fprintf(stderr, &quot;OpenGL 2.0 not available\n&quot;);
-        return 1;
-    }
-&lt;/pre&gt;
-&lt;p&gt;
-After GLUT creates our window, it prepares OpenGL so that we can start making calls into the library. The first thing we do is initialize GLEW. When &lt;tt&gt;glewInit&lt;/tt&gt; is called, it sets a bunch of flags based on what extensions and OpenGL versions are available. We check the &lt;tt&gt;GLEW_VERSION_2_0&lt;/tt&gt; flag here to ensure we have OpenGL 2.0 available before proceeding. Besides the version flags it sets, GLEW&#39;s role is mostly invisible, and we won&#39;t need to interact with it after it&#39;s been initialized.
-&lt;/p&gt;
-&lt;pre&gt;
-    if (!make_resources()) {
-        fprintf(stderr, &quot;Failed to load resources\n&quot;);
-        return 1;
-    }
-
-    glutMainLoop();
-    return 0;
-}
-&lt;/pre&gt;
-&lt;p&gt;With GLEW initialized, we call our &lt;tt&gt;make_resources&lt;/tt&gt; function to set up our OpenGL resources. We&#39;ll build up that function over the next few parts of this chapter. If our resources load successfully, &lt;tt&gt;glutMainLoop&lt;/tt&gt; takes over. It displays the window, starts receiving UI events from the window system, and invokes the callbacks we set up in response to those events. It will also exit the program for us when the user quits. The &lt;tt&gt;return 0&lt;/tt&gt; merely suppresses compiler warnings and never actually gets reached.
-&lt;/p&gt;
-&lt;h3&gt;Compiling and running our program&lt;/h3&gt;
-&lt;p&gt;
-At this point, we can stub out our GLUT callbacks and &lt;tt&gt;make_resources&lt;/tt&gt; function and get a working, if pointless, program:
-&lt;/p&gt;
-&lt;pre&gt;
-static int make_resources(void)
-{
-    return 1;
-}
-&lt;/pre&gt;
-&lt;pre&gt;
-static void update_fade_factor(void)
-{
-}
-&lt;/pre&gt;
-&lt;pre&gt;
-static void render(void)
-{
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glutSwapBuffers();
-}
-&lt;/pre&gt;
-&lt;p&gt;
-&lt;a name=&quot;gl2-compiling&quot;&gt;&lt;tt&gt;glClearColor&lt;/tt&gt; sets an &lt;a href=&quot;http://en.wikipedia.org/wiki/RGBA&quot;&gt;RGBA&lt;/a&gt; clear color (in this case, white), which &lt;tt&gt;glClear&lt;/tt&gt; then uses to fill the framebuffer&#39;s color buffer. &lt;tt&gt;glutSwapBuffers&lt;/tt&gt; then brings our cleared color buffer to the screen. With these stubs in place, we can now compile and run our program. This stubbed-out version is in the Github repo as &lt;a href=&quot;http://github.com/jckarter/hello-gl/blob/master/hello-gl-dummy.c&quot;&gt;&lt;tt&gt;hello-gl-dummy.c&lt;/tt&gt;&lt;/a&gt;. The command to compile the program and link it to the OpenGL, GLUT, and GLEW libraries will vary across platforms. On most Unixes it should look something like this:
-&lt;/a&gt;&lt;/p&gt;
-&lt;pre&gt;
-gcc -o hello-gl-dummy hello-gl-dummy.c \
-    -I/usr/X11R6/include -L/usr/X11R6/lib \
-    -lGL -lGLEW -lglut
-&lt;/pre&gt;
-&lt;p&gt;On MacOS X:&lt;/p&gt;
-&lt;pre&gt;
-# Assuming GLEW was installed to /opt/local
-gcc -o hello-gl-dummy hello-gl-dummy.c \
-    -I/opt/local/include -L/opt/local/lib \
-    -framework OpenGL -framework GLUT -lGLEW
-&lt;/pre&gt;
-&lt;p&gt;On Windows with Visual C++:&lt;/p&gt;
-&lt;pre&gt;
-cl /Fohello-gl-dummy.obj /c hello-gl-dummy.c
-link /out:hello-gl-dummy.exe hello-gl-dummy.obj \
-    opengl32.lib glut32.lib glew32.lib
-&lt;/pre&gt;
-&lt;p&gt;On Windows with mingw:&lt;/p&gt;
-&lt;pre&gt;
-gcc -o hello-gl-dummy.exe hello-gl-dummy.c \
-    -lopengl32 -lglut32 -lglew32
-&lt;/pre&gt;
-&lt;p&gt;
-The repo also includes makefiles for each of these platform groups. You can build this version of the program using the &lt;tt&gt;hello-gl-dummy&lt;/tt&gt; (or &lt;tt&gt;hello-gl-dummy.exe&lt;/tt&gt; on Windows):
-&lt;/p&gt;
-&lt;pre&gt;
-make -f Makefile.MacOSX hello-gl-dummy # or Makefile.Unix or Makefile.Mingw
-&lt;/pre&gt;
-&lt;pre&gt;
-nmake /f Nmakefile.Windows hello-gl-dummy.exe
-&lt;/pre&gt;
-&lt;p&gt;Once you&#39;ve built the program, you should then be able to run the program and get a white window, as promised:
-&lt;center&gt;&lt;img src=&quot;http://duriansoftware.com/joe/media/gl2-dummy-screenshot.png&quot;&gt;&lt;/center&gt;
-Close the window, or on MacOS X quit the application, to dismiss it.
-&lt;/p&gt;
-&lt;h3&gt;Next time, buffers and textures&lt;/h3&gt;
-&lt;p&gt;
-With the red tape of getting a window open out of the way, we&#39;re ready to actually feed our vertexes and images into OpenGL. In the next article, I&#39;ll introduce OpenGL&#39;s buffer and texture objects.
-&lt;/p&gt;
-&lt;h4&gt;&lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-1:-The-Graphics-Pipeline.html&quot;&gt;&amp;laquo; Chapter 1&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Table-of-Contents.html&quot;&gt;Table of Contents&lt;/a&gt; | &lt;a href=&quot;http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2.1:-Buffers-and-Textures.html&quot;&gt;Chapter 2.1 &amp;raquo;&lt;/a&gt;&lt;/h4&gt;
-
-
-</description>
-<dc:creator>Joe Groff</dc:creator>
-<dc:date>2010-04-19T08:03:35+00:00</dc:date>
-<guid>http://duriansoftware.com/joe/An-intro-to-modern-OpenGL.-Chapter-2:-Hello-World:-The-Slideshow.html</guid>
 </item>
 
 </channel>
