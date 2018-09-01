@@ -9,7 +9,7 @@
 <meta name=twitter:title content="Optimizing is-multiple checks with modular arithmetic">
 <meta name=twitter:description content="Integer division and remainder are among the slowest fundamental arithmetic operations CPUs support, an order of magnitude or more slower than multiplication on many architectures, so compilers have a&hellip;">
 <h1>Optimizing is-multiple checks with modular arithmetic</h1>
-<div class=date>August 30, 2018</div>
+<div class=date>August 31, 2018</div>
 Integer division and remainder are among the slowest fundamental arithmetic operations CPUs
 support, an order of magnitude or more slower than multiplication on many architectures, so
 compilers have a lot of incentive to turn them into cheaper operations.
@@ -63,7 +63,7 @@ is_multiple:
 
 This is an improvement over using a division instruction to perform the
 remainder, but the above code sequence still involves two multiplications, one
-of which is a "double-width" multiplication (getting a 64 bit result from 32
+of which is a <q>double-width</q> multiplication (getting a 64 bit result from 32
 bit operands), along with a double-width right shift. Can we do better? It
 turns out we can, using some tricks with modular arithmetic. Integer arithmetic
 in a 32- or 64-bit CPU register wraps if it overflows, effectively implementing
@@ -97,8 +97,8 @@ Another interesting thing about multiplication by an odd number modulo 2ⁿ is t
 <b>permutes</b> the group of numbers. If we take every number from 0 to 2ⁿ – 1 and multiply it by
 the same odd number modulo 2ⁿ, we will see all of those numbers in the results
 once, just in a different order. Since the multiples of 679 between 0 and 2³²
-all map to their dividends when multiplied by the inverse 2,068,415,767, that
-uses up the values 0 up to ⌊2³²/679⌋ = 6,325,430 in the permuted set modulo 2³². This
+all map to their quotients when multiplied by the inverse 2,068,415,767, that
+uses up the values 0 through ⌊2³²/679⌋ = 6,325,430 in the permuted set modulo 2³². This
 means that every non-multiple must give a result larger than any multiple
 produces. So we can reimplement the <tt>is_multiple</tt> function as:
 
@@ -125,9 +125,11 @@ a bug to add this optimization to LLVM.)
 Even numbers do not have a multiplicative inverse modulo 2ⁿ, but we can still use this trick,
 since they can be factored into a power of two and an odd number. For instance,
 1738 = 869 × 2, and a number is a multiple of 1738 if it is a multiple of both
-869 and 2. Testing whether something is a multiple of 2 is done easily by
-bitwise-and of the low bits, and we can use the above trick to test whether something is
-a multiple of the odd factor. So:
+869 and 2. Furthermore, after dividing by the odd factor, the remaining quotient will be 
+a multiple of the power of two if the original number was. Testing whether
+something is a multiple of 2 is done easily by bitwise-and of the low bits, and
+we can use the above trick to test whether something is a multiple of the odd
+factor. So:
 
 <pre>
 bool is_multiple(unsigned x) {
@@ -138,12 +140,62 @@ bool is_multiple(unsigned x) {
 can be optimized into:
 
 <pre>
-unsigned is_multiple(unsigned x) {
-  unsigned inv = x * 148272749u; // inverse of 869 mod 2**32
-  return inv < 4942425u // ceil(2**32/869)
+bool is_multiple(unsigned x) {
+  unsigned inv = x * 148272749u;  // inverse of 869 mod 2**32
+  return inv < 4942425u           // ceil(2**32/869)
       && (inv & 1) == 0;
 }
 </pre>
+
+<b>Update:</b> <a href="https://twitter.com/gparker/status/1035646181953626112">Greg Parker</a>
+and <a href="https://twitter.com/HaroldAptroot/status/1035528798496808961">Harold Aptroot</a>
+point out that a further refinement is possible: we can rotate the low bit(s) into the high bits
+and do one unsigned comparison instead:
+
+<pre>
+bool is_multiple(unsigned x) {
+  unsigned inv = x * 148272749u;     // inverse of 869 mod 2**32
+  inv = (inv >> 1u) | (inv << 31u);  // rotate by one bit
+  return inv <= 2471212u;            // floor(2**32/869) >> 1
+}
+</pre>
+
+A reasonable follow-up question: could using the modular inverse be a better optimization for
+general division or remainder computations, not only the is-multiple test? Unfortunately, the
+answer is <q>probably not.</q> For exact multiples of a divisor, we've seen that multiplying by the
+modular inverse gives the result of the division, so if division by exact multiples is the only
+case we care about, then this technique could be an improvement over the
+reciprocal. However, for an arbitrary dividend, the modular inverse doesn't
+really simplify the problem. As a simple example, let's consider division by
+seven for four-bit integers (in other words, modulo 16). The inverse of seven
+modulo 16 happens to be seven.  If we multiply each number from zero through
+fifteen by seven, and arrange the results by remainder modulo seven, we
+get:
+
+<style>
+table.quotients { background:#d0ddee; padding:5px 10px; margin: 1em 0; border-radius:5px }
+table.quotients * { text-align: right }
+table.quotients td, th { width: 2em; background:#e0eeff; border-radius: 5px; padding:3px }
+</style>
+<table class="quotients">
+<tr> <th>Remainder:</th> <th>0</th> <th>1</th> <th>2</th>  <th>3</th> <th>4</th>  <th>5</th> <th>6</th>  </tr>
+<tr> <td></td>           <td>0</td> <td>7</td> <td>14</td> <td>5</td> <td>12</td> <td>3</td> <td>10</td> </tr>
+<tr> <td></td>           <td>1</td> <td>8</td> <td>15</td> <td>6</td> <td>13</td> <td>4</td> <td>11</td> </tr>
+<tr> <td></td>           <td>2</td> <td>9</td> </tr>
+</tr>
+</table>
+
+The multiples of seven map neatly to their quotients, but the non-multiples
+don't so much. Every non-multiple with the same remainder maps to a contiguous
+range of values, so maybe by finding which of these ranges the result falls into,
+we could subtract the base value and get the quotient that way. For a small
+divisor like seven, we could perhaps precompute that mapping from remainder to
+range of values to emit a decision tree, but this wouldn't scale well to larger divisors, and
+is not as straightforward as multiplying by reciprocal. It might be an interesting alternative
+to explore for extremely limited hardware that doesn't natively support integer multiplication
+or performs multiplication very slowly, on which the double-width multiplication necessary for
+the reciprocal technique might be worth avoiding, but on desktop-class CPUs this is probably
+not an improvement.
 
 
 <p>

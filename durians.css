@@ -2,6 +2,8 @@ body { max-width:900px; margin:auto; padding:0 15px; font-family:Palatino, Cambr
 h1 { margin:1em 0 0.5em 0; line-height:120% }
 h1, h2, h3, h4, .date, .footer { font-family:-apple-system, Helvetica, Calibri, Arial, serif; font-weight:600 }
 p { line-height:150% }
+q::before { content: "\201C" }
+q::after { content: "\201D" }
 .date { font-size:90%; color:#223; margin:0 0 2em 0 }
 
 .footer, pre, img.figure { background:#d0ddee }
