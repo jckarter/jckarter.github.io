@@ -20,3 +20,13 @@ pre, img.figure { border-radius:5px; padding:10px }
 
 a:link { color:#34b }
 a:visited { color:#34b }
+
+@media(prefers-color-scheme: dark) {
+body { color: #fff; background: #223; }
+.date { color: #dde }
+a:link { color: #89f }
+a:visited { color: #89f }
+.footer, pre, img.figure { color:#fff; background:#404455 }
+.quotients { background: #404455 !important; }
+.quotients td, th { background: #606677 !important; }
+}
